@@ -16,8 +16,10 @@ package main
 import (
 	"flag"
 	"os"
+	"github.com/golang/glog"
 
 	driver "github.com/davidz627/gce-csi-driver/pkg/gce-csi-driver"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 func init() {
@@ -26,8 +28,12 @@ func init() {
 
 var (
 	endpoint   = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
-	driverName = flag.String("drivername", "csi-hostpath", "name of the driver")
+	driverName = flag.String("drivername", "csi-gce", "name of the driver")
 	nodeID     = flag.String("nodeid", "", "node id")
+	//TODO(dyzz): make this a flag?
+	version = csi.Version{
+		Minor: 1,
+	}
 )
 
 func main() {
@@ -38,6 +44,13 @@ func main() {
 }
 
 func handle() {
-	driver := driver.GetGCEDriver()
-	driver.Run(*driverName, *nodeID, *endpoint)
+	gceDriver := driver.GetGCEDriver()
+
+	//Initialize GCE Driver (Move setup to main?)
+	err := gceDriver.SetupGCEDriver(*driverName, &version, []*csi.Version{&version}, *nodeID)
+	if err != nil{
+		glog.Fatalln("Failed to initialize GCE CSI Driver")
+	}
+
+	gceDriver.Run(*endpoint)
 }

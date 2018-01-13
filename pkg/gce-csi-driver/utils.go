@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcecsidriver
+package gceGCEDriver
 
 import (
 	"fmt"
@@ -62,24 +62,6 @@ func NewVolumeCapabilityAccessMode(mode csi.VolumeCapability_AccessMode_Mode) *c
 	return &csi.VolumeCapability_AccessMode{Mode: mode}
 }
 
-func NewDefaultNodeServer(d *CSIDriver) *DefaultNodeServer {
-	return &DefaultNodeServer{
-		Driver: d,
-	}
-}
-
-func NewDefaultIdentityServer(d *CSIDriver) *DefaultIdentityServer {
-	return &DefaultIdentityServer{
-		Driver: d,
-	}
-}
-
-func NewDefaultControllerServer(d *CSIDriver) *DefaultControllerServer {
-	return &DefaultControllerServer{
-		Driver: d,
-	}
-}
-
 func NewControllerServiceCapability(cap csi.ControllerServiceCapability_RPC_Type) *csi.ControllerServiceCapability {
 	return &csi.ControllerServiceCapability{
 		Type: &csi.ControllerServiceCapability_Rpc{
@@ -88,30 +70,6 @@ func NewControllerServiceCapability(cap csi.ControllerServiceCapability_RPC_Type
 			},
 		},
 	}
-}
-
-func RunNodePublishServer(endpoint string, d *CSIDriver, ns csi.NodeServer) {
-	ids := NewDefaultIdentityServer(d)
-
-	s := NewNonBlockingGRPCServer()
-	s.Start(endpoint, ids, nil, ns)
-	s.Wait()
-}
-
-func RunControllerPublishServer(endpoint string, d *CSIDriver, cs csi.ControllerServer) {
-	ids := NewDefaultIdentityServer(d)
-
-	s := NewNonBlockingGRPCServer()
-	s.Start(endpoint, ids, cs, nil)
-	s.Wait()
-}
-
-func RunControllerandNodePublishServer(endpoint string, d *CSIDriver, cs csi.ControllerServer, ns csi.NodeServer) {
-	ids := NewDefaultIdentityServer(d)
-
-	s := NewNonBlockingGRPCServer()
-	s.Start(endpoint, ids, cs, ns)
-	s.Wait()
 }
 
 func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {

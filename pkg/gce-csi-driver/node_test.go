@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcecsidriver
+package gceGCEDriver
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 func TestGetNodeID(t *testing.T) {
 	d := NewFakeDriver()
 
-	ns := NewDefaultNodeServer(d)
+	ns := NewGCENodeServer(d)
 
 	// Test invalid request
 	req := csi.GetNodeIDRequest{}
@@ -45,7 +45,7 @@ func TestGetNodeID(t *testing.T) {
 func TestNodeGetCapabilities(t *testing.T) {
 	d := NewFakeDriver()
 
-	ns := NewDefaultNodeServer(d)
+	ns := NewGCENodeServer(d)
 
 	// Test invalid request
 	req := csi.NodeGetCapabilitiesRequest{}
@@ -63,7 +63,7 @@ func TestNodeGetCapabilities(t *testing.T) {
 func TestNodeProbe(t *testing.T) {
 	d := NewFakeDriver()
 
-	ns := NewDefaultNodeServer(d)
+	ns := NewGCENodeServer(d)
 
 	// Test invalid request
 	req := csi.NodeProbeRequest{}
@@ -81,7 +81,7 @@ func TestNodeProbe(t *testing.T) {
 func TestNodePublishVolume(t *testing.T) {
 	d := NewFakeDriver()
 
-	ns := NewDefaultNodeServer(d)
+	ns := NewGCENodeServer(d)
 
 	// Test invalid request
 	req := csi.NodePublishVolumeRequest{}
@@ -101,7 +101,7 @@ func TestNodePublishVolume(t *testing.T) {
 func TestNodeUnpublishVolume(t *testing.T) {
 	d := NewFakeDriver()
 
-	ns := NewDefaultNodeServer(d)
+	ns := NewGCENodeServer(d)
 
 	// Test invalid request
 	req := csi.NodeUnpublishVolumeRequest{}

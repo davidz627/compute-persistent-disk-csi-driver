@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcecsidriver
+package gceGCEDriver
 
 import (
 	"testing"
@@ -39,7 +39,7 @@ var (
 	}
 )
 
-func NewFakeDriver() *CSIDriver {
+func NewFakeDriver() *GCEDriver {
 	fakeVersion = csi.Version{Major: 5, Minor: 2, Patch: 0}
 	fakeVersionsSupported = []*csi.Version{
 		&csi.Version{
@@ -50,14 +50,14 @@ func NewFakeDriver() *CSIDriver {
 		},
 	}
 
-	driver := NewCSIDriver(fakeDriverName, &fakeVersion, fakeVersionsSupported, fakeNodeID)
+	driver := NewGCEDriver(fakeDriverName, &fakeVersion, fakeVersionsSupported, fakeNodeID)
 
 	return driver
 }
 
 func TestNewFakeDriver(t *testing.T) {
 	// Test New fake driver with invalid arguments.
-	d := NewCSIDriver("", &fakeVersion, fakeVersionsSupported, fakeNodeID)
+	d := NewGCEDriver("", &fakeVersion, fakeVersionsSupported, fakeNodeID)
 	assert.Nil(t, d)
 }
 

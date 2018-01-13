@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcecsidriver
+package gceGCEDriver
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -21,11 +21,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type DefaultNodeServer struct {
-	Driver *CSIDriver
+type GCENodeServer struct {
+	Driver *GCEDriver
 }
 
-func (ns *DefaultNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (ns *DefaultNodeServer) NodePublishVolume(ctx context.Context, req *csi.Nod
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
-func (ns *DefaultNodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+func (ns *GCENodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func (ns *DefaultNodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.N
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
-func (ns *DefaultNodeServer) GetNodeID(ctx context.Context, req *csi.GetNodeIDRequest) (*csi.GetNodeIDResponse, error) {
+func (ns *GCENodeServer) GetNodeID(ctx context.Context, req *csi.GetNodeIDRequest) (*csi.GetNodeIDResponse, error) {
 	glog.V(5).Infof("Using default GetNodeID")
 
 	err := ns.Driver.CheckVersion(req.GetVersion())
@@ -54,7 +54,7 @@ func (ns *DefaultNodeServer) GetNodeID(ctx context.Context, req *csi.GetNodeIDRe
 	}, nil
 }
 
-func (ns *DefaultNodeServer) NodeProbe(ctx context.Context, req *csi.NodeProbeRequest) (*csi.NodeProbeResponse, error) {
+func (ns *GCENodeServer) NodeProbe(ctx context.Context, req *csi.NodeProbeRequest) (*csi.NodeProbeResponse, error) {
 	glog.V(5).Infof("Using default NodeProbe")
 
 	err := ns.Driver.CheckVersion(req.GetVersion())
@@ -65,7 +65,7 @@ func (ns *DefaultNodeServer) NodeProbe(ctx context.Context, req *csi.NodeProbeRe
 	return &csi.NodeProbeResponse{}, nil
 }
 
-func (ns *DefaultNodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+func (ns *GCENodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
 	glog.V(5).Infof("Using default NodeGetCapabilities")
 
 	err := ns.Driver.CheckVersion(req.GetVersion())

@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcecsidriver
+package gceGCEDriver
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -22,7 +22,7 @@ import (
 )
 
 type DefaultControllerServer struct {
-	Driver *CSIDriver
+	Driver *GCEDriver
 }
 
 func (cs *DefaultControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
@@ -46,7 +46,7 @@ func (cs *DefaultControllerServer) ValidateVolumeCapabilities(ctx context.Contex
 
 	for _, c := range req.GetVolumeCapabilities() {
 		found := false
-		for _, c1 := range cs.Driver.vc {
+		for _, c1 := range cs.Driver.vcap {
 			if c1.GetMode() == c.GetAccessMode().GetMode() {
 				found = true
 			}
@@ -88,6 +88,6 @@ func (cs *DefaultControllerServer) ControllerGetCapabilities(ctx context.Context
 	glog.V(5).Infof("Using default ControllerGetCapabilities")
 
 	return &csi.ControllerGetCapabilitiesResponse{
-		Capabilities: cs.Driver.cap,
+		Capabilities: cs.Driver.cscap,
 	}, nil
 }

@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcecsidriver
+package gceGCEDriver
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -21,35 +21,35 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type DefaultIdentityServer struct {
-	Driver *CSIDriver
+type GCEIdentityServer struct {
+	Driver *GCEDriver
 }
 
-//GetSupportedVersions(context.Context, *GetSupportedVersionsRequest) (*GetSupportedVersionsResponse, error)
-//GetPluginInfo(context.Context, *GetPluginInfoRequest) (*GetPluginInfoResponse, error)
-func (ids *DefaultIdentityServer) GetSupportedVersions(ctx context.Context, req *csi.GetSupportedVersionsRequest) (*csi.GetSupportedVersionsResponse, error) {
+// GetSupportedVersions(context.Context, *GetSupportedVersionsRequest) (*GetSupportedVersionsResponse, error)
+func (gceIdentity *GCEIdentityServer) GetSupportedVersions(ctx context.Context, req *csi.GetSupportedVersionsRequest) (*csi.GetSupportedVersionsResponse, error) {
 	glog.V(5).Infof("Using default GetSupportedVersions")
 	return &csi.GetSupportedVersionsResponse{
-		SupportedVersions: ids.Driver.supVers,
+		SupportedVersions: gceIdentity.Driver.supVers,
 	}, nil
 }
 
-func (ids *DefaultIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
+// GetPluginInfo(context.Context, *GetPluginInfoRequest) (*GetPluginInfoResponse, error)
+func (gceIdentity *GCEIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
 	glog.V(5).Infof("Using default GetPluginInnfo")
 
-	if ids.Driver.name == "" {
+	if gceIdentity.Driver.name == "" {
 		return nil, status.Error(codes.Unavailable, "Driver name not configured")
 	}
 
-	err := ids.Driver.CheckVersion(req.GetVersion())
+	err := gceIdentity.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
 		return nil, err
 	}
 
-	version := GetVersionString(ids.Driver.version)
+	version := GetVersionString(gceIdentity.Driver.version)
 
 	return &csi.GetPluginInfoResponse{
-		Name:          ids.Driver.name,
+		Name:          gceIdentity.Driver.name,
 		VendorVersion: version,
 	}, nil
 }

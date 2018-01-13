@@ -11,56 +11,44 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcecsidriver
+package gceGCEDriver
 
 import (
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
+	"fmt"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
-type CSIDriver struct {
+type GCEDriver struct{
 	name    string
 	nodeID  string
+
+	ids *GCEIdentityServer
+	//ns  *nodeServer
+	//cs  *controllerServer
+
 	version *csi.Version
 	supVers []*csi.Version
-	cap     []*csi.ControllerServiceCapability
-	vc      []*csi.VolumeCapability_AccessMode
-}
 
-type GCEDriver struct{
-	driver *CSIDriver
+	vcap   []*csi.VolumeCapability_AccessMode
+	cscap []*csi.ControllerServiceCapability
 }
 
 func GetGCEDriver() *GCEDriver {
 	return &GCEDriver{}
 }
 
-func (gce *GCEDriver) Run(driverName, nodeID, endpoint string){
-	return
-}
-
-
-
-
-// Creates a NewCSIDriver object. Assumes vendor version is equal to driver version &
-// does not support optional driver plugin info manifest field. Refer to CSI spec for more details.
-func NewCSIDriver(name string, v *csi.Version, supVers []*csi.Version, nodeID string) *CSIDriver {
+func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers []*csi.Version, nodeID string) error{
 	if name == "" {
-		glog.Errorf("Driver name missing")
-		return nil
+		return fmt.Errorf("Driver name missing")
 	}
-
 	if nodeID == "" {
-		glog.Errorf("NodeID missing")
-		return nil
+		return fmt.Errorf("NodeID missing")
 	}
-
 	if v == nil {
-		glog.Errorf("Version argument missing")
-		return nil
+		return fmt.Errorf("Version argument missing")
 	}
 
 	found := false
@@ -69,42 +57,65 @@ func NewCSIDriver(name string, v *csi.Version, supVers []*csi.Version, nodeID st
 			found = true
 		}
 	}
-
 	if !found {
 		supVers = append(supVers, v)
 	}
 
-	driver := CSIDriver{
-		name:    name,
-		version: v,
-		supVers: supVers,
-		nodeID:  nodeID,
-	}
+	gceDriver.name = name
+	gceDriver.version = v
+	gceDriver.supVers = supVers
+	gceDriver.nodeID = nodeID
 
-	return &driver
+	// Adding Capabilities
+	//TODO(dyzz): find out if its actually this one MULTI_NODE_SINGLE_WRITER
+	vcam := []csi.VolumeCapability_AccessMode_Mode{
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
+	}
+	gceDriver.AddVolumeCapabilityAccessModes(vcam)
+	//TODO(dyzz) do we actually support all of these?
+	csc := []csi.ControllerServiceCapability_RPC_Type{
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+		csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+	}
+	gceDriver.AddControllerServiceCapabilities(csc)
+
+	// Set up RPC Servers
+	gceDriver.ids = NewIdentityServer(gceDriver)
+	//gceDriver.ns = NewNodeServer(hp.driver)
+	//gceDriver.cs = NewControllerServer(hp.driver)
+
+	return nil
 }
 
-func (d *CSIDriver) CheckVersion(v *csi.Version) error {
-	if v == nil {
-		return status.Error(codes.InvalidArgument, "Version missing")
+func (gceDriver *GCEDriver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_AccessMode_Mode) error {
+	var vca []*csi.VolumeCapability_AccessMode
+	for _, c := range vc {
+		glog.Infof("Enabling volume access mode: %v", c.String())
+		vca = append(vca, NewVolumeCapabilityAccessMode(c))
 	}
-
-	// Assumes always backward compatible
-	for _, sv := range d.supVers {
-		if v.Major == sv.Major && v.Minor <= sv.Minor {
-			return nil
-		}
-	}
-
-	return status.Error(codes.InvalidArgument, "Unsupported version: "+GetVersionString(v))
+	gceDriver.vcap = vca
+	return nil
 }
 
-func (d *CSIDriver) ValidateControllerServiceRequest(v *csi.Version, c csi.ControllerServiceCapability_RPC_Type) error {
+func (gceDriver *GCEDriver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) error{
+	var csc []*csi.ControllerServiceCapability
+	for _, c := range cl {
+		glog.Infof("Enabling controller service capability: %v", c.String())
+		csc = append(csc, NewControllerServiceCapability(c))
+	}
+	gceDriver.cscap = csc
+	return nil
+}
+
+func (gceDriver *GCEDriver) ValidateControllerServiceRequest(v *csi.Version, c csi.ControllerServiceCapability_RPC_Type) error {
 	if v == nil {
 		return status.Error(codes.InvalidArgument, "Version not specified")
 	}
 
-	if err := d.CheckVersion(v); err != nil {
+	if err := gceDriver.CheckVersion(v); err != nil {
 		return status.Error(codes.InvalidArgument, "Unsupported version")
 	}
 
@@ -112,7 +123,7 @@ func (d *CSIDriver) ValidateControllerServiceRequest(v *csi.Version, c csi.Contr
 		return nil
 	}
 
-	for _, cap := range d.cap {
+	for _, cap := range gceDriver.cscap {
 		if c == cap.GetRpc().GetType() {
 			return nil
 		}
@@ -121,29 +132,36 @@ func (d *CSIDriver) ValidateControllerServiceRequest(v *csi.Version, c csi.Contr
 	return status.Error(codes.InvalidArgument, "Unsupported version: "+GetVersionString(v))
 }
 
-func (d *CSIDriver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) {
-	var csc []*csi.ControllerServiceCapability
+func NewIdentityServer(gceDriver *GCEDriver) *GCEIdentityServer {
+	return &GCEIdentityServer{
+		Driver: gceDriver,
+	}
+}
 
-	for _, c := range cl {
-		glog.Infof("Enabling controller service capability: %v", c.String())
-		csc = append(csc, NewControllerServiceCapability(c))
+func (gceDriver *GCEDriver) CheckVersion(v *csi.Version) error {
+	if v == nil {
+		return status.Error(codes.InvalidArgument, "Version missing")
 	}
 
-	d.cap = csc
-
-	return
-}
-
-func (d *CSIDriver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_AccessMode_Mode) []*csi.VolumeCapability_AccessMode {
-	var vca []*csi.VolumeCapability_AccessMode
-	for _, c := range vc {
-		glog.Infof("Enabling volume access mode: %v", c.String())
-		vca = append(vca, NewVolumeCapabilityAccessMode(c))
+	// Assumes always backward compatible
+	for _, sv := range gceDriver.supVers {
+		if v.Major == sv.Major && v.Minor <= sv.Minor {
+			return nil
+		}
 	}
-	d.vc = vca
-	return vca
+
+	return status.Error(codes.InvalidArgument, "Unsupported version: "+GetVersionString(v))
 }
 
-func (d *CSIDriver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_AccessMode {
-	return d.vc
+func (gceDriver *GCEDriver) Run(endpoint string){
+	glog.Infof("Driver: %v version: %v", gceDriver.name, GetVersionString(gceDriver.version))
+
+	//Start the nonblocking GRPC
+	s := NewNonBlockingGRPCServer()
+	// TODO(dyzz): add in the other servers.
+	// In the future have this only run specific combinations of servers depending on which version this is.
+	// The schema for that was in util. basically it was just s.start but with some nil servers.
+	s.Start(endpoint, gceDriver.ids, nil, nil)
+	s.Wait()
 }
+
