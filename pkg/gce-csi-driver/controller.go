@@ -13,6 +13,9 @@ limitations under the License.
 
 package gceGCEDriver
 
+//TODO make error messages better, of form "{Call}{args} error: {error}"
+//TODO all functions should actually have real return values according to spec
+
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
@@ -51,11 +54,31 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	var project string = "dyzz-test"
 
 	glog.Infof("CreateVolume called with request %v", *req)
+
+	// Check arguments
+	if req.GetVersion() == nil {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume Version must be provided")
+	}
+	if len(req.GetName()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume Name must be provided")
+	}
+	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume Volume capabilities must be provided")
+	}
+	if req.GetCapacityRange() == nil {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume CapacityRange must be specified")
+	}
+	if req.GetCapacityRange().GetRequiredBytes() == 0 {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume Capacity range required bytes cannot be zero")
+	}
+
+	// TODO: validate volume capabilities
+
 	svc := gceCS.Driver.cloudService
 
 	capBytes := getRequestCapacity(req.GetCapacityRange())
 
-	// TODO: Support replica zones and fs type
+	// TODO: Support replica zones and fs type. Can vendor in api-machinery stuff for sets etc.
 	// Apply Parameters (case-insensitive). We leave validation of
 	// the values to the cloud provider.
 	diskType := ""
@@ -94,8 +117,14 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	}
 
 	if !zonePresent{
-		glog.Errorf("Zone not set")
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume Zone must be specified")
 	}
+
+	if diskType == "" {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume DiskType must be specified")
+	}
+
+	//TODO: validate that volume has not already been created or is in process of creation
 
 	diskToCreate := &compute.Disk{
 		Name:        req.GetName(),
@@ -104,20 +133,57 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		Description: "PD Created by CSI Driver",
 		Type:        getDiskType(project, configuredZone, diskType),
 	}
-	//TODO: find out how to get the right project
-	_, err := svc.Disks.Insert(project, configuredZone, diskToCreate).Do()
+	_, err := svc.Disks.Insert(project, configuredZone, diskToCreate).Context(ctx).Do()
 	if (err != nil){
-		glog.Errorf("Some errrof: %v", err)
+		//TODO Probably need to case out different types of creation errors and give different error codes for each
+		glog.Errorf("Some creation error: %v", err)
 	}
-	return nil, status.Error(codes.Unimplemented, "")
+
+	resp := &csi.CreateVolumeResponse{
+		VolumeInfo: &csi.VolumeInfo{
+			CapacityBytes: capBytes,
+			Id: combineVolumeId(project, configuredZone, req.GetName()),
+			//TODO: what are attributes for
+			Attributes: nil,
+		},
+	}
+	return resp, nil
 }
 
 func getDiskType(project, zone, diskType string) string{
 	return fmt.Sprintf("projects/%s/zones/%s/diskTypes/%s", project, zone, diskType)
 }
 
+func combineVolumeId(project, zone, name string) string{
+	return fmt.Sprintf("%s/%s/%s", project, zone, name)
+}
+
 func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	// Assuming ID is of form {project}/{zone}/{id}
+	glog.Infof("DeleteVolume called with request %v", *req)
+	svc := gceCS.Driver.cloudService
+
+	project, zone, name, err := splitVolumeId(req.GetVolumeId())
+	if err != nil{
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("DeleteVolume error: %v", err))
+	}
+
+	_, err = svc.Disks.Delete(project, zone, name).Context(ctx).Do()
+
+	if err != nil{
+		//TODO probably case out on different types of errors for different grpc error
+		glog.Errorf("DeleteVolume error: %v", err)
+	}
+
+	return nil, nil
+}
+
+func splitVolumeId(volumeId string) (string, string, string, error){
+	splitId := strings.Split(volumeId, "/")
+	if len(splitId) != 3{
+		return "","","",fmt.Errorf("Failed to get id components. Expected {project}/{zone}/{name}. Got: %s", volumeId)
+	}
+	return splitId[0], splitId[1], splitId[2], nil
 }
 
 func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
