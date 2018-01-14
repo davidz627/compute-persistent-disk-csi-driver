@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -19,6 +19,8 @@ import (
 	"google.golang.org/grpc/status"
 	"fmt"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	compute "google.golang.org/api/compute/v1"
+	gce "github.com/davidz627/gce-csi-driver/pkg/gce-cloud-provider"
 )
 
 type GCEDriver struct{
@@ -34,6 +36,8 @@ type GCEDriver struct{
 
 	vcap   []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
+
+	cloudService *compute.Service
 }
 
 func GetGCEDriver() *GCEDriver {
@@ -67,7 +71,6 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	gceDriver.nodeID = nodeID
 
 	// Adding Capabilities
-	//TODO(dyzz): find out if its actually this one MULTI_NODE_SINGLE_WRITER
 	vcam := []csi.VolumeCapability_AccessMode_Mode{
 		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
@@ -76,9 +79,9 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	//TODO(dyzz) do we actually support all of these?
 	csc := []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
-		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
-		csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+		//csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+		//csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+		//csi.ControllerServiceCapability_RPC_GET_CAPACITY,
 	}
 	gceDriver.AddControllerServiceCapabilities(csc)
 
@@ -87,6 +90,11 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	//gceDriver.ns = NewNodeServer(hp.driver)
 	//gceDriver.cs = NewControllerServer(hp.driver)
 
+	svc, err := gce.CreateCloudService()
+	if err != nil{
+		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
+	}
+	gceDriver.cloudService = svc
 	return nil
 }
 

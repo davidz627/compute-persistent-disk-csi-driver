@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -49,7 +49,7 @@ func handle() {
 	//Initialize GCE Driver (Move setup to main?)
 	err := gceDriver.SetupGCEDriver(*driverName, &version, []*csi.Version{&version}, *nodeID)
 	if err != nil{
-		glog.Fatalln("Failed to initialize GCE CSI Driver")
+		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
 	}
 
 	gceDriver.Run(*endpoint)

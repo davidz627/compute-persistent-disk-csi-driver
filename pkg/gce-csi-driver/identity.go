@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -35,7 +35,7 @@ func (gceIdentity *GCEIdentityServer) GetSupportedVersions(ctx context.Context, 
 
 // GetPluginInfo(context.Context, *GetPluginInfoRequest) (*GetPluginInfoResponse, error)
 func (gceIdentity *GCEIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
-	glog.V(5).Infof("Using default GetPluginInnfo")
+	glog.V(5).Infof("Using default GetPluginInfo")
 
 	if gceIdentity.Driver.name == "" {
 		return nil, status.Error(codes.Unavailable, "Driver name not configured")
