@@ -20,154 +20,101 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	compute "google.golang.org/api/compute/v1"
+	"strings"
+	"fmt"
 )
 
 type GCEControllerServer struct {
 	Driver *GCEDriver
 }
 
-func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	svc := gceCS.Driver.cloudService
-	diskToCreate := &compute.Disk{
-		Name:        "csi-test-disk",
-		SizeGb:      5,
-		Description: "testdescription",
-		Type:        "zones/us-central1-c/diskTypes/pd-standard",
+var(
+	//TODO Check default size
+	DefaultVolumeSize uint64 = 5000000000
+)
+
+func getRequestCapacity(capRange *csi.CapacityRange) (capBytes uint64){
+	//TODO(dyzz): take another look at these casts/caps
+	if tcap := capRange.GetRequiredBytes(); tcap > 0{
+		capBytes = tcap
+	} else if tcap = capRange.GetLimitBytes(); tcap > 0{
+		capBytes = tcap
+	} else{
+		// Default size
+		capBytes = DefaultVolumeSize
 	}
-	svc.Disks.Insert(
-		"dyzz-test", "us-central1-c", diskToCreate).Do()
-	return nil, status.Error(codes.Unimplemented, "")
+	return
 }
 
-/*
-The create volume call from GCE PD
+func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	//TODO: Get project from request
+	var project string = "dyzz-test"
 
-// CreateVolume creates a GCE PD.
-// Returns: gcePDName, volumeSizeGB, labels, fsType, error
-func (gceutil *GCEDiskUtil) CreateVolume(c *gcePersistentDiskProvisioner) (string, int, map[string]string, string, error) {
-	cloud, err := getCloudProvider(c.gcePersistentDisk.plugin.host.GetCloudProvider())
-	if err != nil {
-		return "", 0, nil, "", err
-	}
+	glog.Infof("CreateVolume called with request %v", *req)
+	svc := gceCS.Driver.cloudService
 
-	name := volume.GenerateVolumeName(c.options.ClusterName, c.options.PVName, 63) // GCE PD name can have up to 63 characters
-	capacity := c.options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
-	// GCE PDs are allocated in chunks of GBs (not GiBs)
-	requestGB := volume.RoundUpToGB(capacity)
+	capBytes := getRequestCapacity(req.GetCapacityRange())
 
+	// TODO: Support replica zones and fs type
 	// Apply Parameters (case-insensitive). We leave validation of
 	// the values to the cloud provider.
 	diskType := ""
 	configuredZone := ""
+	zonePresent := false
+	/*
 	configuredZones := ""
 	configuredReplicaZones := ""
-	zonePresent := false
 	zonesPresent := false
 	replicaZonesPresent := false
 	fstype := ""
-	for k, v := range c.options.Parameters {
+	*/
+	for k, v := range req.GetParameters() {
 		switch strings.ToLower(k) {
 		case "type":
+			glog.Infof("Setting type: %v", v)
 			diskType = v
 		case "zone":
 			zonePresent = true
 			configuredZone = v
+		/*
 		case "zones":
 			zonesPresent = true
 			configuredZones = v
 		case "replica-zones":
 			replicaZonesPresent = true
 			configuredReplicaZones = v
-		case volume.VolumeParameterFSType:
+		case "fstype":
 			fstype = v
+		*/
 		default:
-			return "", 0, nil, "", fmt.Errorf("invalid option %q for volume plugin %s", k, c.plugin.GetPluginName())
+			glog.Errorf("invalid option %q", k)
+			return nil, fmt.Errorf("some sort of error has happened with options")
+			//return "", 0, nil, "", fmt.Errorf("invalid option %q for volume plugin %s", k, c.plugin.GetPluginName())
 		}
 	}
 
-	if ((zonePresent || zonesPresent) && replicaZonesPresent) ||
-		(zonePresent && zonesPresent) {
-		// 011, 101, 111, 110
-		return "", 0, nil, "", fmt.Errorf("a combination of zone, zones, and replica-zones StorageClass parameters must not be used at the same time")
+	if !zonePresent{
+		glog.Errorf("Zone not set")
 	}
 
-	// TODO: implement PVC.Selector parsing
-	if c.options.PVC.Spec.Selector != nil {
-		return "", 0, nil, "", fmt.Errorf("claim.Spec.Selector is not supported for dynamic provisioning on GCE")
+	diskToCreate := &compute.Disk{
+		Name:        req.GetName(),
+		SizeGb:      BytesToGB(capBytes),
+		//TODO: Is this description important for anything
+		Description: "PD Created by CSI Driver",
+		Type:        getDiskType(project, configuredZone, diskType),
 	}
-
-	if !zonePresent && !zonesPresent && replicaZonesPresent {
-		// 001 - "replica-zones" specified
-		replicaZones, err := volumeutil.ZonesToSet(configuredReplicaZones)
-		if err != nil {
-			return "", 0, nil, "", err
-		}
-
-		err = createRegionalPD(
-			name,
-			c.options.PVC.Name,
-			diskType,
-			replicaZones,
-			requestGB,
-			c.options.CloudTags,
-			cloud)
-		if err != nil {
-			glog.V(2).Infof("Error creating regional GCE PD volume: %v", err)
-			return "", 0, nil, "", err
-		}
-
-		glog.V(2).Infof("Successfully created Regional GCE PD volume %s", name)
-	} else {
-		var zones sets.String
-		if !zonePresent && !zonesPresent {
-			// 000 - neither "zone", "zones", or "replica-zones" specified
-			// Pick a zone randomly selected from all active zones where
-			// Kubernetes cluster has a node.
-			zones, err = cloud.GetAllCurrentZones()
-			if err != nil {
-				glog.V(2).Infof("error getting zone information from GCE: %v", err)
-				return "", 0, nil, "", err
-			}
-		} else if !zonePresent && zonesPresent {
-			// 010 - "zones" specified
-			// Pick a zone randomly selected from specified set.
-			if zones, err = volumeutil.ZonesToSet(configuredZones); err != nil {
-				return "", 0, nil, "", err
-			}
-		} else if zonePresent && !zonesPresent {
-			// 100 - "zone" specified
-			// Use specified zone
-			if err := volume.ValidateZone(configuredZone); err != nil {
-				return "", 0, nil, "", err
-			}
-			zones = make(sets.String)
-			zones.Insert(configuredZone)
-		}
-		zone := volume.ChooseZoneForVolume(zones, c.options.PVC.Name)
-
-		if err := cloud.CreateDisk(
-			name,
-			diskType,
-			zone,
-			int64(requestGB),
-			*c.options.CloudTags); err != nil {
-			glog.V(2).Infof("Error creating single-zone GCE PD volume: %v", err)
-			return "", 0, nil, "", err
-		}
-
-		glog.V(2).Infof("Successfully created single-zone GCE PD volume %s", name)
+	//TODO: find out how to get the right project
+	_, err := svc.Disks.Insert(project, configuredZone, diskToCreate).Do()
+	if (err != nil){
+		glog.Errorf("Some errrof: %v", err)
 	}
-
-	labels, err := cloud.GetAutoLabelsForPD(name, "" )
-	if err != nil {
-		// We don't really want to leak the volume here...
-		glog.Errorf("error getting labels for volume %q: %v", name, err)
-	}
-
-	return name, int(requestGB), labels, fstype, nil
+	return nil, status.Error(codes.Unimplemented, "")
 }
 
-*/
+func getDiskType(project, zone, diskType string) string{
+	return fmt.Sprintf("projects/%s/zones/%s/diskTypes/%s", project, zone, diskType)
+}
 
 func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
