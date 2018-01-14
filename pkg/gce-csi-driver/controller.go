@@ -19,6 +19,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	compute "google.golang.org/api/compute/v1"
 )
 
 type GCEControllerServer struct {
@@ -26,6 +27,15 @@ type GCEControllerServer struct {
 }
 
 func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	svc := gceCS.Driver.cloudService
+	diskToCreate := &compute.Disk{
+		Name:        "csi-test-disk",
+		SizeGb:      5,
+		Description: "testdescription",
+		Type:        "zones/us-central1-c/diskTypes/pd-standard",
+	}
+	svc.Disks.Insert(
+		"dyzz-test", "us-central1-c", diskToCreate).Do()
 	return nil, status.Error(codes.Unimplemented, "")
 }
 

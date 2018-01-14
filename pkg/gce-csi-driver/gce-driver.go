@@ -29,7 +29,7 @@ type GCEDriver struct{
 
 	ids *GCEIdentityServer
 	//ns  *nodeServer
-	//cs  *controllerServer
+	cs  *GCEControllerServer
 
 	version *csi.Version
 	supVers []*csi.Version
@@ -87,8 +87,8 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 
 	// Set up RPC Servers
 	gceDriver.ids = NewIdentityServer(gceDriver)
-	//gceDriver.ns = NewNodeServer(hp.driver)
-	//gceDriver.cs = NewControllerServer(hp.driver)
+	//gceDriver.ns = NewNodeServer(gceDriver)
+	gceDriver.cs = NewControllerServer(gceDriver)
 
 	svc, err := gce.CreateCloudService()
 	if err != nil{
@@ -146,6 +146,12 @@ func NewIdentityServer(gceDriver *GCEDriver) *GCEIdentityServer {
 	}
 }
 
+func NewControllerServer(gceDriver *GCEDriver) *GCEControllerServer {
+	return &GCEControllerServer{
+		Driver: gceDriver,
+	}
+}
+
 func (gceDriver *GCEDriver) CheckVersion(v *csi.Version) error {
 	if v == nil {
 		return status.Error(codes.InvalidArgument, "Version missing")
@@ -169,7 +175,7 @@ func (gceDriver *GCEDriver) Run(endpoint string){
 	// TODO(dyzz): add in the other servers.
 	// In the future have this only run specific combinations of servers depending on which version this is.
 	// The schema for that was in util. basically it was just s.start but with some nil servers.
-	s.Start(endpoint, gceDriver.ids, nil, nil)
+	s.Start(endpoint, gceDriver.ids, gceDriver.cs, nil)
 	s.Wait()
 }
 
