@@ -1,5 +1,6 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2018 Google Inc.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -39,6 +40,7 @@ func CreateCloudService() (*compute.Service, error){
 }
 
 //TODO: Authenticate smarter. Check Kubernetes for better methods of auth.
+//TODO: Add alternative methods of authentication
 func newDefaultOauthClient() (*http.Client, error) {
 	var err error
 	tokenSource, err := google.DefaultTokenSource(
