@@ -39,6 +39,8 @@ type GCEDriver struct{
 	cscap []*csi.ControllerServiceCapability
 
 	cloudService *compute.Service
+	project string
+	zone string
 }
 
 func GetGCEDriver() *GCEDriver {
@@ -96,6 +98,14 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
 	}
 	gceDriver.cloudService = svc
+
+	project, zone, err := gce.GetProjectAndZone()
+	//TODO: need some backup method of getting project and zone in case metadata not working
+	if err != nil{
+		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
+	}
+	gceDriver.project = project
+	gceDriver.zone = zone
 	return nil
 }
 

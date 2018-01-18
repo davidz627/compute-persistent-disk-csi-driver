@@ -22,6 +22,11 @@ import(
 		"net/http"
 		"fmt"
 		"runtime"
+		"strings"
+		"google.golang.org/api/googleapi"
+		"cloud.google.com/go/compute/metadata"
+		"time"
+		"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func CreateCloudService() (*compute.Service, error){
@@ -53,4 +58,56 @@ func newDefaultOauthClient() (*http.Client, error) {
 	}
 
 	return oauth2.NewClient(oauth2.NoContext, tokenSource), nil
+}
+
+func GetProjectAndZone() (string, string, error) {
+	result, err := metadata.Get("instance/zone")
+	if err != nil {
+		return "", "", err
+	}
+	parts := strings.Split(result, "/")
+	if len(parts) != 4 {
+		return "", "", fmt.Errorf("unexpected response: %s", result)
+	}
+	zone := parts[3]
+	projectID, err := metadata.ProjectID()
+	if err != nil {
+		return "", "", err
+	}
+	return projectID, zone, nil
+}
+
+// isGCEError returns true if given error is a googleapi.Error with given
+// reason (e.g. "resourceInUseByAnotherResource")
+func IsGCEError(err error, reason string) bool {
+	apiErr, ok := err.(*googleapi.Error)
+	if !ok {
+		return false
+	}
+
+	for _, e := range apiErr.Errors {
+		if e.Reason == reason {
+			return true
+		}
+	}
+	return false
+}
+
+func WaitForOp(op *compute.Operation, project, zone string, svc *compute.Service) error{
+	//TODO Vendor API MACHINERY
+	return wait.Poll( 3 * time.Second, time.Hour, func() (bool, error) {
+		pollOp, err := svc.ZoneOperations.Get(project, zone, op.Name).Do()
+		if err != nil {
+			//TODO some sort of error handling here
+			glog.Errorf("error")
+			return false, err
+		}
+
+		done := opIsDone(pollOp)
+		return done, err
+	})
+}
+
+func opIsDone(op *compute.Operation) bool {
+	return op != nil && op.Status == "DONE"
 }

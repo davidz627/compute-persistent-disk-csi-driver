@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	compute "google.golang.org/api/compute/v1"
+	gceprovider "github.com/davidz627/gce-csi-driver/pkg/gce-cloud-provider"
 	"strings"
 	"fmt"
 )
@@ -51,9 +52,7 @@ func getRequestCapacity(capRange *csi.CapacityRange) (capBytes uint64){
 }
 
 func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	//TODO: Get project from request
-	var project string = "dyzz-test"
-
+	var project string = gceCS.Driver.project
 	glog.Infof("CreateVolume called with request %v", *req)
 
 	// Check arguments
@@ -134,22 +133,37 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		Description: "PD Created by CSI Driver",
 		Type:        getDiskType(project, configuredZone, diskType),
 	}
-	_, err := svc.Disks.Insert(project, configuredZone, diskToCreate).Context(ctx).Do()
+	insertOp, err := svc.Disks.Insert(project, configuredZone, diskToCreate).Context(ctx).Do()
 	if (err != nil){
 		//TODO Probably need to case out different types of creation errors and give different error codes for each
 		glog.Errorf("Some creation error: %v", err)
 	}
+	
+	if gceprovider.IsGCEError(err, "alreadyExists") {
+		glog.Warningf("GCE PD %q already exists, reusing", req.GetName())
+		//TODO: return the correct error type
+		return nil,err
+	}
+
+	err = gceprovider.WaitForOp(insertOp, project, configuredZone, gceCS.Driver.cloudService)
+	if gceprovider.IsGCEError(err, "alreadyExists") {
+		glog.Warningf("GCE PD %q already exists after wait, reusing", req.GetName())
+		//TODO: return the correct error type
+		return nil,err
+	}	
 
 	resp := &csi.CreateVolumeResponse{
 		VolumeInfo: &csi.VolumeInfo{
 			CapacityBytes: capBytes,
-			Id: combineVolumeId(project, configuredZone, req.GetName()),
+			Id: combineVolumeId(gceCS.Driver.project, configuredZone, req.GetName()),
 			//TODO: what are attributes for
 			Attributes: nil,
 		},
 	}
 	return resp, nil
 }
+
+
 
 func getDiskType(project, zone, diskType string) string{
 	return fmt.Sprintf("projects/%s/zones/%s/diskTypes/%s", project, zone, diskType)
