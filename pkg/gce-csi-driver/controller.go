@@ -228,9 +228,10 @@ func combineVolumeId(project, zone, name string) string{
 }
 
 func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+	// TODO: should we only be able to delete volumes created by the CSI driver, or all volumes in that project?
 	// Assuming ID is of form {project}/{zone}/{id}
 	glog.Infof("DeleteVolume called with request %v", *req)
-	
+
 	svc := gceCS.Driver.cloudService
 
 	project, zone, name, err := splitVolumeId(req.VolumeId)
@@ -268,6 +269,7 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 }
 
 func (gceCS *GCEControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
+	// TODO: revisit this, this is just the default
 	glog.V(5).Infof("Using default ValidateVolumeCapabilities")
 
 	for _, c := range req.GetVolumeCapabilities() {
@@ -283,7 +285,7 @@ func (gceCS *GCEControllerServer) ValidateVolumeCapabilities(ctx context.Context
 				Message:   "Driver doesnot support mode:" + c.GetAccessMode().Mode.String(),
 			}, status.Error(codes.InvalidArgument, "Driver doesnot support mode:"+c.GetAccessMode().Mode.String())
 		}
-		// TODO: Ignoring mount & block tyeps for now.
+		// TODO: Ignoring mount & block types for now.
 	}
 
 	return &csi.ValidateVolumeCapabilitiesResponse{
@@ -292,14 +294,17 @@ func (gceCS *GCEControllerServer) ValidateVolumeCapabilities(ctx context.Context
 }
 
 func (gceCS *GCEControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
+	// https://cloud.google.com/compute/docs/reference/beta/disks/list
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (gceCS *GCEControllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
+	// https://cloud.google.com/compute/quotas
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (gceCS *GCEControllerServer) ControllerProbe(ctx context.Context, req *csi.ControllerProbeRequest) (*csi.ControllerProbeResponse, error) {
+	// TODO: revisit this because just using default
 	glog.V(5).Infof("Using default ControllerProbe")
 
 	if err := gceCS.Driver.ValidateControllerServiceRequest(req.Version, csi.ControllerServiceCapability_RPC_UNKNOWN); err != nil {
@@ -311,6 +316,7 @@ func (gceCS *GCEControllerServer) ControllerProbe(ctx context.Context, req *csi.
 // ControllerGetCapabilities implements the default GRPC callout.
 // Default supports all capabilities
 func (gceCS *GCEControllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
+	// TODO: revisit this because just using default
 	glog.V(5).Infof("Using default ControllerGetCapabilities")
 
 	return &csi.ControllerGetCapabilitiesResponse{
