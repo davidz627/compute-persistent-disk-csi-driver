@@ -37,6 +37,14 @@ const (
 	// MaxVolumeSize is the maximum standard and ssd size of 64TB
 	MaxVolumeSize uint64 = 64000000000000
 	DefaultVolumeSize uint64 = 5000000000
+
+
+	DiskTypeSSD      = "pd-ssd"
+	DiskTypeStandard = "pd-standard"
+
+	diskTypeDefault               = DiskTypeStandard
+	diskTypeURITemplateSingleZone = "%s/zones/%s/diskTypes/%s"   // {gce.projectID}/zones/{disk.Zone}/diskTypes/{disk.Type}"
+	diskSourceURITemplateSingleZone = "%s/zones/%s/disks/%s"   // {gce.projectID}/zones/{disk.Zone}/disks/{disk.Name}"
 )
 
 func getRequestCapacity(capRange *csi.CapacityRange) (capBytes uint64){
@@ -220,7 +228,7 @@ func getAndValidateExistingDisk(svc *compute.Service, project, configuredZone, n
 }
 
 func getDiskTypeURI(project, zone, diskType string) string{
-	return fmt.Sprintf("projects/%s/zones/%s/diskTypes/%s", project, zone, diskType)
+	return fmt.Sprintf(diskTypeURITemplateSingleZone, project, zone, diskType)
 }
 
 func combineVolumeId(project, zone, name string) string{
@@ -234,7 +242,7 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 
 	svc := gceCS.Driver.cloudService
 
-	project, zone, name, err := splitVolumeId(req.VolumeId)
+	project, zone, name, err := splitProjectZoneNameId(req.VolumeId)
 	if err != nil{
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("DeleteVolume error: %v", err))
 	}
@@ -252,7 +260,7 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-func splitVolumeId(volumeId string) (string, string, string, error){
+func splitProjectZoneNameId(volumeId string) (string, string, string, error){
 	splitId := strings.Split(volumeId, "/")
 	if len(splitId) != 3{
 		return "","","",fmt.Errorf("Failed to get id components. Expected {project}/{zone}/{name}. Got: %s", volumeId)
@@ -261,7 +269,77 @@ func splitVolumeId(volumeId string) (string, string, string, error){
 }
 
 func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	glog.Infof("ControllerPublishVolume called with request %v", *req)
+	
+	svc := gceCS.Driver.cloudService
+	project := gceCS.Driver.project
+
+	// Check arguments
+	if req.GetVersion() == nil {
+		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Version must be provided")
+	}
+	if len(req.VolumeId) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
+	}
+	if len(req.NodeId) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Node ID must be provided")
+	}
+	
+	if req.GetVolumeCapability() == nil {
+		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume capability must be provided")
+	}
+
+	readWrite := "READ_WRITE"
+	if req.Readonly {
+		readWrite = "READ_ONLY"
+	}
+
+	_, volumeZone, volumeName, err := splitProjectZoneNameId(req.VolumeId)
+	if err != nil{
+		// Do something
+	}
+
+	disk, err := svc.Disks.Get(project, volumeZone, volumeName).Context(ctx).Do()
+	if err != nil{
+		//TODO give right error
+		glog.Warningf("Unknown disk GET error: %v", err)
+	}
+
+	source := getDiskSourceURI(svc, disk, project, volumeZone)
+
+	attachedDiskV1 := &compute.AttachedDisk{
+		DeviceName: disk.Name,
+		Kind:       disk.Kind,
+		Mode:       readWrite,
+		Source:     source,
+		Type:       disk.Type,
+	}
+
+	//TODO: get Instance
+	_, instanceZone, instanceName, err := splitProjectZoneNameId(req.NodeId)
+
+	attachOp, err := svc.Instances.AttachDisk(
+		project, instanceZone, instanceName, attachedDiskV1).Do()
+
+	err = gceprovider.WaitForOp(attachOp, project, instanceZone, svc)
+	if err != nil{
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Delete operation error: %v", err))
+	}
+	
+	pubVolResp := &csi.ControllerPublishVolumeResponse{
+		// TODO: Should this have anything?
+		PublishVolumeInfo: nil,
+	}
+
+	return pubVolResp, nil
+}
+
+func getDiskSourceURI(svc *compute.Service, disk *compute.Disk, project, zone string) string {
+	return svc.BasePath + fmt.Sprintf(
+		diskSourceURITemplateSingleZone,
+		project,
+		zone,
+		disk.Name)
 }
 
 func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
@@ -295,11 +373,13 @@ func (gceCS *GCEControllerServer) ValidateVolumeCapabilities(ctx context.Context
 
 func (gceCS *GCEControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	// https://cloud.google.com/compute/docs/reference/beta/disks/list
+	// List volumes in the whole region? In only the zone that this controller is running?
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (gceCS *GCEControllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	// https://cloud.google.com/compute/quotas
+	// DISKS_TOTAL_GB.
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
