@@ -33,16 +33,17 @@ type GCEControllerServer struct {
 	Driver *GCEDriver
 }
 
-var(
-	//TODO Check default size
+const (
+	// MaxVolumeSize is the maximum standard and ssd size of 64TB
+	MaxVolumeSize uint64 = 64000000000000
 	DefaultVolumeSize uint64 = 5000000000
 )
 
 func getRequestCapacity(capRange *csi.CapacityRange) (capBytes uint64){
 	//TODO(dyzz): take another look at these casts/caps
-	if tcap := capRange.GetRequiredBytes(); tcap > 0{
+	if tcap := capRange.RequiredBytes; tcap > 0{
 		capBytes = tcap
-	} else if tcap = capRange.GetLimitBytes(); tcap > 0{
+	} else if tcap = capRange.LimitBytes; tcap > 0{
 		capBytes = tcap
 	} else{
 		// Default size
@@ -52,14 +53,16 @@ func getRequestCapacity(capRange *csi.CapacityRange) (capBytes uint64){
 }
 
 func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	var project string = gceCS.Driver.project
 	glog.Infof("CreateVolume called with request %v", *req)
+
+	svc := gceCS.Driver.cloudService
+	project := gceCS.Driver.project
 
 	// Check arguments
 	if req.GetVersion() == nil {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Version must be provided")
 	}
-	if len(req.GetName()) == 0 {
+	if len(req.Name) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Name must be provided")
 	}
 	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
@@ -68,13 +71,14 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	if req.GetCapacityRange() == nil {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume CapacityRange must be specified")
 	}
-	if req.GetCapacityRange().GetRequiredBytes() == 0 {
+	if req.GetCapacityRange().RequiredBytes == 0 {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Capacity range required bytes cannot be zero")
+	}
+	if req.GetCapacityRange().RequiredBytes > MaxVolumeSize {
+		return nil, status.Error(codes.OutOfRange, fmt.Sprintf("CreateVolume Capacity range required bytes cannot be greater than %v", MaxVolumeSize))
 	}
 
 	// TODO: validate volume capabilities
-
-	svc := gceCS.Driver.cloudService
 
 	capBytes := getRequestCapacity(req.GetCapacityRange())
 
@@ -117,55 +121,107 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	}
 
 	if !zonePresent{
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume Zone must be specified")
+		return nil, status.Error(codes.InvalidArgument, "Zone must be specified")
 	}
 
 	if diskType == "" {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume DiskType must be specified")
+		return nil, status.Error(codes.InvalidArgument, "DiskType must be specified")
 	}
 
-	//TODO: validate that volume has not already been created or is in process of creation
-
-	diskToCreate := &compute.Disk{
-		Name:        req.GetName(),
-		SizeGb:      BytesToGB(capBytes),
-		//TODO: Is this description important for anything
-		Description: "PD Created by CSI Driver",
-		Type:        getDiskType(project, configuredZone, diskType),
-	}
-	insertOp, err := svc.Disks.Insert(project, configuredZone, diskToCreate).Context(ctx).Do()
-	if (err != nil){
-		//TODO Probably need to case out different types of creation errors and give different error codes for each
-		glog.Errorf("Some creation error: %v", err)
-	}
-	
-	if gceprovider.IsGCEError(err, "alreadyExists") {
-		glog.Warningf("GCE PD %q already exists, reusing", req.GetName())
-		//TODO: return the correct error type
-		return nil,err
-	}
-
-	err = gceprovider.WaitForOp(insertOp, project, configuredZone, gceCS.Driver.cloudService)
-	if gceprovider.IsGCEError(err, "alreadyExists") {
-		glog.Warningf("GCE PD %q already exists after wait, reusing", req.GetName())
-		//TODO: return the correct error type
-		return nil,err
-	}	
-
-	resp := &csi.CreateVolumeResponse{
+	createResp := &csi.CreateVolumeResponse{
 		VolumeInfo: &csi.VolumeInfo{
 			CapacityBytes: capBytes,
-			Id: combineVolumeId(gceCS.Driver.project, configuredZone, req.GetName()),
+			Id: combineVolumeId(gceCS.Driver.project, configuredZone, req.Name),
 			//TODO: what are attributes for
 			Attributes: nil,
 		},
 	}
-	return resp, nil
+
+	// Check for existing disk of same name in same zone
+	exists, err := getAndValidateExistingDisk(svc, project, configuredZone,
+		req.Name, diskType,
+		req.GetCapacityRange().RequiredBytes,
+		req.GetCapacityRange().LimitBytes, ctx)
+	if err != nil{
+		return nil, err
+	}
+	if exists{
+		glog.Warningf("GCE PD %s already exists, reusing", req.Name)
+		return createResp, nil
+	}
+	
+	diskToCreate := &compute.Disk{
+		Name:        req.Name,
+		SizeGb:      BytesToGb(capBytes),
+		//TODO: Is this description important for anything
+		Description: "PD Created by CSI Driver",
+		Type:        getDiskTypeURI(project, configuredZone, diskType),
+	}
+
+	insertOp, err := svc.Disks.Insert(project, configuredZone, diskToCreate).Context(ctx).Do()
+
+	if gceprovider.IsGCEError(err, "alreadyExists") {
+		_, err := getAndValidateExistingDisk(svc, project, configuredZone,
+			req.Name, diskType,
+			req.GetCapacityRange().RequiredBytes,
+			req.GetCapacityRange().LimitBytes, ctx)
+		if err != nil{
+			return nil, err
+		}
+		glog.Warningf("GCE PD %s already exists, reusing", req.Name)
+		return createResp, nil
+	}
+	
+	err = gceprovider.WaitForOp(insertOp, project, configuredZone, gceCS.Driver.cloudService)
+
+	if gceprovider.IsGCEError(err, "alreadyExists") {
+		_, err := getAndValidateExistingDisk(svc, project, configuredZone,
+			req.Name, diskType,
+			req.GetCapacityRange().RequiredBytes,
+			req.GetCapacityRange().LimitBytes, ctx)
+		if err != nil{
+			return nil, err
+		}
+		glog.Warningf("GCE PD %s already exists after wait, reusing", req.Name)
+		return createResp, nil
+	}
+	
+	glog.Infof("Completed creation of disk %v", req.Name)
+	return createResp, nil
 }
 
+func getAndValidateExistingDisk(svc *compute.Service, project, configuredZone, name, diskType string, reqBytes, limBytes uint64, ctx context.Context) (exists bool, err error){
+	resp, err := svc.Disks.Get(project, configuredZone, name).Context(ctx).Do()
+	if err != nil{
+		if gceprovider.IsGCEError(err, "notFound"){
+			glog.Infof("Disk %v does not already exist. Continuing with creation.", name)
+		} else{
+			glog.Warningf("Unknown disk GET error: %v", err)
+		}
+	}
 
+	if resp != nil{
+		// Disk already exists
+		if GbToBytes(resp.SizeGb) < reqBytes ||
+		 GbToBytes(resp.SizeGb) > limBytes {
+			return true, status.Error(codes.AlreadyExists, fmt.Sprintf(
+				"Disk already exists with incompatible capacity. Need %v (Required) < %v (Existing) < %v (Limit)",
+				reqBytes, GbToBytes(resp.SizeGb), limBytes))
+		} else if respType := strings.Split(resp.Type, "/"); respType[len(respType)-1] != diskType{
+			return true, status.Error(codes.AlreadyExists, fmt.Sprintf(
+				"Disk already exists with incompatible type. Need %v. Got %v",
+				diskType, respType[len(respType)-1]))
+		} else{
+			// Volume exists with matching name, capacity, type.
+			glog.Infof("Compatible disk already exists. Reusing existing.")
+			return  true, nil
+		}
+	}
 
-func getDiskType(project, zone, diskType string) string{
+	return false, nil
+}
+
+func getDiskTypeURI(project, zone, diskType string) string{
 	return fmt.Sprintf("projects/%s/zones/%s/diskTypes/%s", project, zone, diskType)
 }
 
@@ -178,7 +234,7 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	glog.Infof("DeleteVolume called with request %v", *req)
 	svc := gceCS.Driver.cloudService
 
-	project, zone, name, err := splitVolumeId(req.GetVolumeId())
+	project, zone, name, err := splitVolumeId(req.VolumeId)
 	if err != nil{
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("DeleteVolume error: %v", err))
 	}
@@ -215,15 +271,15 @@ func (gceCS *GCEControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	for _, c := range req.GetVolumeCapabilities() {
 		found := false
 		for _, c1 := range gceCS.Driver.vcap {
-			if c1.GetMode() == c.GetAccessMode().GetMode() {
+			if c1.Mode == c.GetAccessMode().Mode {
 				found = true
 			}
 		}
 		if !found {
 			return &csi.ValidateVolumeCapabilitiesResponse{
 				Supported: false,
-				Message:   "Driver doesnot support mode:" + c.GetAccessMode().GetMode().String(),
-			}, status.Error(codes.InvalidArgument, "Driver doesnot support mode:"+c.GetAccessMode().GetMode().String())
+				Message:   "Driver doesnot support mode:" + c.GetAccessMode().Mode.String(),
+			}, status.Error(codes.InvalidArgument, "Driver doesnot support mode:"+c.GetAccessMode().Mode.String())
 		}
 		// TODO: Ignoring mount & block tyeps for now.
 	}

@@ -129,7 +129,7 @@ func TestGetVolumeCapabilityAccessModes(t *testing.T) {
 	d.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
 	modes := d.GetVolumeCapabilityAccessModes()
 	assert.Equal(t, 1, len(modes))
-	assert.Equal(t, modes[0].GetMode(), csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER)
+	assert.Equal(t, modes[0].Mode, csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER)
 }
 
 func TestValidateControllerServiceRequest(t *testing.T) {

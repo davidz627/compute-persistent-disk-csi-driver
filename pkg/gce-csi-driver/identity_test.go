@@ -38,7 +38,7 @@ func TestGetSupportedVersions(t *testing.T) {
 	for _, fv := range fakeVersionsSupported {
 		found := false
 		for _, rv := range resp.GetSupportedVersions() {
-			if fv.GetMajor() == rv.GetMajor() && fv.GetMinor() == rv.GetMinor() && fv.GetPatch() == rv.GetPatch() {
+			if fv.Major == rv.Major && fv.Minor == rv.Minor && fv.Patch == rv.Patch {
 				found = true
 			}
 		}
@@ -62,5 +62,5 @@ func TestGetPluginInfo(t *testing.T) {
 	req.Version = &fakeVersion
 	resp, err = ids.GetPluginInfo(context.Background(), &req)
 	assert.NoError(t, err)
-	assert.Equal(t, resp.GetName(), fakeDriverName)
+	assert.Equal(t, resp.Name, fakeDriverName)
 }

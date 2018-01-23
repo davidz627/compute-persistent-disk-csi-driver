@@ -47,7 +47,7 @@ func GetGCEDriver() *GCEDriver {
 	return &GCEDriver{}
 }
 
-func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers []*csi.Version, nodeID string) error{
+func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers []*csi.Version, nodeID, project string) error{
 	if name == "" {
 		return fmt.Errorf("Driver name missing")
 	}
@@ -57,10 +57,13 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	if v == nil {
 		return fmt.Errorf("Version argument missing")
 	}
+	if project == ""{
+		return fmt.Errorf("Project missing")
+	}
 
 	found := false
 	for _, sv := range supVers {
-		if sv.GetMajor() == v.GetMajor() && sv.GetMinor() == v.GetMinor() && sv.GetPatch() == v.GetPatch() {
+		if sv.Major == v.Major && sv.Minor == v.Minor && sv.Patch == v.Patch {
 			found = true
 		}
 	}
@@ -99,13 +102,18 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	}
 	gceDriver.cloudService = svc
 
+	/*
+	// TODO: This only works when running on a GCE instance I think...
 	project, zone, err := gce.GetProjectAndZone()
-	//TODO: need some backup method of getting project and zone in case metadata not working
+	// TODO: need some backup method of getting project and zone in case metadata not working
 	if err != nil{
 		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
 	}
 	gceDriver.project = project
 	gceDriver.zone = zone
+	*/
+	gceDriver.project = project
+
 	return nil
 }
 
@@ -143,7 +151,7 @@ func (gceDriver *GCEDriver) ValidateControllerServiceRequest(v *csi.Version, c c
 	}
 
 	for _, cap := range gceDriver.cscap {
-		if c == cap.GetRpc().GetType() {
+		if c == cap.GetRpc().Type {
 			return nil
 		}
 	}

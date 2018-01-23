@@ -31,9 +31,10 @@ var (
 	endpoint   = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
 	driverName = flag.String("drivername", "csi-gce", "name of the driver")
 	nodeID     = flag.String("nodeid", "", "node id")
+	project = flag.String("project", "", "project to provision storage in")
 	//TODO(dyzz): make this a flag?
 	version = csi.Version{
-		Minor: 1,
+		Minor: 2,
 	}
 )
 
@@ -48,7 +49,7 @@ func handle() {
 	gceDriver := driver.GetGCEDriver()
 
 	//Initialize GCE Driver (Move setup to main?)
-	err := gceDriver.SetupGCEDriver(*driverName, &version, []*csi.Version{&version}, *nodeID)
+	err := gceDriver.SetupGCEDriver(*driverName, &version, []*csi.Version{&version}, *nodeID, *project)
 	if err != nil{
 		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
 	}

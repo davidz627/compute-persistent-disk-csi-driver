@@ -4,7 +4,7 @@ Working directory for GCE CSI driver
 ## Testing
 
 ### Testing CreateVolume
-csc controller create-volume csi-test --req-bytes=5000000000 --lim-bytes=5000000000 --params type=pd-standard,zone=us-central1-b -v 0.1.0 --endpoint="/tmp/csi.sock"
+csc controller create-volume csi-test --req-bytes=5000000000 --lim-bytes=5000000000 --params type=pd-standard,zone=us-central1-b --cap SINGLE_NODE_WRITER,mount,fs -v 0.1.0 --endpoint="/tmp/csi.sock"
 
 ### Testing DeleteVolume
 csc controller delete-volume dyzz-test/us-central1-b/csi-test -v 0.1.0 --endpoint="/tmp/csi.sock"
