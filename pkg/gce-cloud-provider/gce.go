@@ -96,7 +96,7 @@ func IsGCEError(err error, reason string) bool {
 func WaitForOp(op *compute.Operation, project, zone string, svc *compute.Service) error{
 	//TODO: Vendor API MACHINERY
 	//TODO: timeouts?
-	return wait.Poll( 3 * time.Second, 5*time.Minute, func() (bool, error) {
+	return wait.Poll( 3 * time.Second, 5 * time.Minute, func() (bool, error) {
 		pollOp, err := svc.ZoneOperations.Get(project, zone, op.Name).Do()
 		if err != nil {
 			//TODO some sort of error handling here

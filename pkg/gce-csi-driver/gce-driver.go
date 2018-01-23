@@ -85,7 +85,7 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	//TODO(dyzz) do we actually support all of these?
 	csc := []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-		//csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 		//csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
 		//csi.ControllerServiceCapability_RPC_GET_CAPACITY,
 	}
