@@ -114,9 +114,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 			fstype = v
 		*/
 		default:
-			glog.Errorf("invalid option %q", k)
-			return nil, fmt.Errorf("some sort of error has happened with options")
-			//return "", 0, nil, "", fmt.Errorf("invalid option %q for volume plugin %s", k, c.plugin.GetPluginName())
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid option %q", k))
 		}
 	}
 
@@ -172,7 +170,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return createResp, nil
 	}
 	
-	err = gceprovider.WaitForOp(insertOp, project, configuredZone, gceCS.Driver.cloudService)
+	err = gceprovider.WaitForOp(insertOp, project, configuredZone, svc)
 
 	if gceprovider.IsGCEError(err, "alreadyExists") {
 		_, err := getAndValidateExistingDisk(svc, project, configuredZone,
@@ -232,6 +230,7 @@ func combineVolumeId(project, zone, name string) string{
 func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	// Assuming ID is of form {project}/{zone}/{id}
 	glog.Infof("DeleteVolume called with request %v", *req)
+	
 	svc := gceCS.Driver.cloudService
 
 	project, zone, name, err := splitVolumeId(req.VolumeId)
@@ -239,14 +238,17 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("DeleteVolume error: %v", err))
 	}
 
-	_, err = svc.Disks.Delete(project, zone, name).Context(ctx).Do()
-
+	deleteOp, err := svc.Disks.Delete(project, zone, name).Context(ctx).Do()
 	if err != nil{
-		//TODO probably case out on different types of errors for different grpc error
-		glog.Errorf("DeleteVolume error: %v", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Delete operation error: %v", err))
 	}
 
-	return nil, nil
+	err = gceprovider.WaitForOp(deleteOp, project, zone, svc)
+	if err != nil{
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Delete operation error: %v", err))
+	}
+
+	return &csi.DeleteVolumeResponse{}, nil
 }
 
 func splitVolumeId(volumeId string) (string, string, string, error){
