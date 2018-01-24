@@ -11,3 +11,6 @@ csc controller delete-volume dyzz-test/us-central1-b/csi-test -v 0.1.0 --endpoin
 
 ### Testing ControllerPublishVolume
 csc controller publish --node-id="dyzz-test/us-central1-b/csi-test-instance" "dyzz-test/us-central1-b/csi-test" --cap=SINGLE_NODE_WRITER,mount,fs --endpoint="/tmp/csi.sock""dyzz-test/us-central1-b/csi-test"
+
+### Testing ControllerUnpublishVolume
+csc controller unpublish --node-id="dyzz-test/us-central1-b/csi-test-instance" "dyzz-test/us-central1-b/csi-test" --endpoint="/tmp/csi.sock"
