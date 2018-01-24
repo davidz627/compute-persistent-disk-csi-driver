@@ -165,34 +165,36 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 	insertOp, err := svc.Disks.Insert(project, configuredZone, diskToCreate).Context(ctx).Do()
 
-	if gceprovider.IsGCEError(err, "alreadyExists") {
-		_, err := getAndValidateExistingDisk(svc, project, configuredZone,
-			req.Name, diskType,
-			req.GetCapacityRange().RequiredBytes,
-			req.GetCapacityRange().LimitBytes, ctx)
-		if err != nil{
-			return nil, err
-		}
-		glog.Warningf("GCE PD %s already exists, reusing", req.Name)
-		return createResp, nil
-	}
 	if err != nil{
-		glog.Errorf("Some other insert error: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Insert disk error: %v", err))
+		if gceprovider.IsGCEError(err, "alreadyExists") {
+			_, err := getAndValidateExistingDisk(svc, project, configuredZone,
+				req.Name, diskType,
+				req.GetCapacityRange().RequiredBytes,
+				req.GetCapacityRange().LimitBytes, ctx)
+			if err != nil{
+				return nil, err
+			}
+			glog.Warningf("GCE PD %s already exists, reusing", req.Name)
+			return createResp, nil
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("unkown Insert disk error: %v", err))
 	}
 	
 	err = gceprovider.WaitForOp(insertOp, project, configuredZone, svc)
 
-	if gceprovider.IsGCEError(err, "alreadyExists") {
-		_, err := getAndValidateExistingDisk(svc, project, configuredZone,
-			req.Name, diskType,
-			req.GetCapacityRange().RequiredBytes,
-			req.GetCapacityRange().LimitBytes, ctx)
-		if err != nil{
-			return nil, err
+	if err != nil{
+		if gceprovider.IsGCEError(err, "alreadyExists") {
+			_, err := getAndValidateExistingDisk(svc, project, configuredZone,
+				req.Name, diskType,
+				req.GetCapacityRange().RequiredBytes,
+				req.GetCapacityRange().LimitBytes, ctx)
+			if err != nil{
+				return nil, err
+			}
+			glog.Warningf("GCE PD %s already exists after wait, reusing", req.Name)
+			return createResp, nil
 		}
-		glog.Warningf("GCE PD %s already exists after wait, reusing", req.Name)
-		return createResp, nil
+		return nil, status.Error(codes.Internal, fmt.Sprintf("unkown Insert disk operation error: %v", err)) 
 	}
 	
 	glog.Infof("Completed creation of disk %v", req.Name)
@@ -252,12 +254,19 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 
 	deleteOp, err := svc.Disks.Delete(project, zone, name).Context(ctx).Do()
 	if err != nil{
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Delete operation error: %v", err))
+		if gceprovider.IsGCEError(err, "resourceInUseByAnotherResource") {
+			return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Volume in use: %v", err))
+		}
+		if gceprovider.IsGCEError(err, "notFound"){
+			// Already deleted
+			return &csi.DeleteVolumeResponse{}, nil
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Delete disk error: %v", err))
 	}
 
 	err = gceprovider.WaitForOp(deleteOp, project, zone, svc)
 	if err != nil{
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Delete operation error: %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Delete disk operation error: %v", err))
 	}
 
 	return &csi.DeleteVolumeResponse{}, nil
@@ -314,23 +323,22 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 		return nil, err
 	}
 
-	attached, compatible := diskIsAttachedAndCompatible(disk, instance)
-	if attached {
-		// Volume is attached to node. Success!
-		if !compatible{
-			// TODO: error for not being compatible should prob have which incompatibility it is...
-			return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("disk %v already published to node %v but incompatbile", volumeName, instanceName))
-		}
-		glog.Infof("Attach operation is successful. PD %q was already attached to node %q.", volumeName, instanceName)
-		return pubVolResp, nil
-	}
-
-	// TODO: check if disk is attached to any other instances, if so. Volume published to another node ERROR!
-
 	readWrite := "READ_WRITE"
 	if req.Readonly {
 		readWrite = "READ_ONLY"
 	}	
+
+	attached, err := diskIsAttachedAndCompatible(disk, instance, req.GetVolumeCapability(), readWrite)
+	if err != nil{
+		return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("disk %v already published to node %v but incompatbile: %v", volumeName, instanceName, err))
+	}
+	if attached {
+		// Volume is attached to node. Success!
+		glog.Infof("Attach operation is successful. PD %q was already attached to node %q.", volumeName, instanceName)
+		return pubVolResp, nil
+	}
+
+	// TODO: check if disk is attached to any other instances, if so. Volume published to another node ERROR!	
 
 	source := getDiskSourceURI(svc, disk, project, volumeZone)
 
@@ -345,12 +353,12 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 	attachOp, err := svc.Instances.AttachDisk(
 		project, instanceZone, instanceName, attachedDiskV1).Do()
 	if err != nil{
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Attach error: %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Attach error: %v", err))
 	}
 
 	err = gceprovider.WaitForOp(attachOp, project, instanceZone, svc)
 	if err != nil{
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Attach operation error: %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Attach operation error: %v", err))
 	}
 	
 	return pubVolResp, nil
@@ -459,16 +467,19 @@ func diskIsAttached(volume *compute.Disk, instance *compute.Instance) (bool) {
 	return false
 }
 
-func diskIsAttachedAndCompatible(volume *compute.Disk, instance *compute.Instance) (bool, bool) {
+func diskIsAttachedAndCompatible(volume *compute.Disk, instance *compute.Instance, volumeCapability *csi.VolumeCapability, readWrite string) (bool, error) {
 	for _, disk := range instance.Disks {
 		if disk.DeviceName == volume.Name {
 			// Disk is attached to node
-			// TODO: check if disk attachment is compatible
-			return true, true
+			if disk.Mode != readWrite{
+				return true, fmt.Errorf("disk mode does not match. Got %v. Want %v", disk.Mode, readWrite)
+			}
+			// TODO: check volume_capability.
+			return true, nil
 		}
 	}
 
-	return false, true
+	return false, nil
 }
 
 
