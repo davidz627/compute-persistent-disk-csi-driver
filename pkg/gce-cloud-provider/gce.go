@@ -29,8 +29,13 @@ import(
 		"k8s.io/apimachinery/pkg/util/wait"
 )
 
+const(
+	TokenURL = "https://accounts.google.com/o/oauth2/token"
+
+)
+
 func CreateCloudService() (*compute.Service, error){
-	client, err := newDefaultOauthClient()
+	client, err := newOauthClient()
 	if err != nil {
 		return nil, err
 	}
@@ -46,14 +51,41 @@ func CreateCloudService() (*compute.Service, error){
 
 //TODO: Authenticate smarter. Check Kubernetes for better methods of auth.
 //TODO: Add alternative methods of authentication
-func newDefaultOauthClient() (*http.Client, error) {
+func newOauthClient() (*http.Client, error) {
+
 	var err error
-	tokenSource, err := google.DefaultTokenSource(
+	tokenSource := google.ComputeTokenSource("")
+	glog.Infof("COMPUTE TOKEN SOURCE: %#v", tokenSource)
+	if err := wait.PollImmediate(5*time.Second, 30*time.Second, func() (bool, error) {
+		if _, err := tokenSource.Token(); err != nil {
+			glog.Errorf("error fetching initial token: %v", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		glog.Warningf("Cannot find compute token source. Are you running this on a non-GCE Instance?")
+	} else{
+		return oauth2.NewClient(oauth2.NoContext, tokenSource), nil
+	}
+
+	// No compute token source, fallback on default
+	tokenSource, err = google.DefaultTokenSource(
 		oauth2.NoContext,
 		compute.CloudPlatformScope,
 		compute.ComputeScope)
 	glog.Infof("Using DefaultTokenSource %#v", tokenSource)
 	if err != nil {
+		return nil, err
+	}
+
+
+	if err := wait.PollImmediate(5*time.Second, 30*time.Second, func() (bool, error) {
+		if _, err := tokenSource.Token(); err != nil {
+			glog.Errorf("error fetching initial token: %v", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
 		return nil, err
 	}
 

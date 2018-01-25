@@ -429,12 +429,30 @@ func udevadmChangeToDrive(drivePath string) error {
 
 
 func (ns *GCENodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	//TODO: This is a default function, needs implementation
+	glog.Infof("NodeUnpublishVolume called with args: %v", req)
+	svc := ns.Driver.cloudService
+	
+	//TODO: check arguments
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
 		return nil, err
 	}
-	return nil, status.Error(codes.Unimplemented, "")
+
+	volumeProject, volumeZone, volumeName, err := splitProjectZoneNameId(req.VolumeId)
+	if err != nil{
+		return nil, err
+	}
+	_, err = getDiskOrError(ctx, svc, volumeProject, volumeZone, volumeName)
+	if err != nil{
+		return nil, err
+	}
+
+	output, err := execRun("umount", req.TargetPath)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Unmount failed: %v\nUnmounting arguments: %s\nOutput: %s\n", err, req.TargetPath, string(output)))
+	}
+
+	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
 func (ns *GCENodeServer) GetNodeID(ctx context.Context, req *csi.GetNodeIDRequest) (*csi.GetNodeIDResponse, error) {
