@@ -12,7 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+IMAGE=gcr.io/dyzz-csi-staging/csi/gce-driver
+VERSION=latest
+
 all: gce-driver
 
 gce-driver:
 	go build -o bin/gce-csi-driver ./cmd/
+
+build-container: gce-driver
+	cp bin/gce-csi-driver deploy/docker
+	docker build -t $(IMAGE):$(VERSION) deploy/docker
+
+push-container: build-container
+	gcloud docker -- push $(IMAGE):$(VERSION)
