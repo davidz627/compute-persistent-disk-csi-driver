@@ -1,6 +1,9 @@
 # Compiled binaries and deployment files 
 /bin/
 
+# Personal testing
+/test/
+
 # Binaries for programs and plugins
 *.exe
 *.dll

@@ -42,7 +42,7 @@ const (
 	DiskTypeStandard = "pd-standard"
 
 	diskTypeDefault               = DiskTypeStandard
-	diskTypeURITemplateSingleZone = "projects/%s/zones/%s/diskTypes/%s"   // {gce.projectID}/zones/{disk.Zone}/diskTypes/{disk.Type}"
+	diskTypeURITemplateSingleZone = "projects/%s/zones/%s/diskTypes/%s"   // projects/{gce.projectID}/zones/{disk.Zone}/diskTypes/{disk.Type}"
 	diskSourceURITemplateSingleZone = "%s/zones/%s/disks/%s"   // {gce.projectID}/zones/{disk.Zone}/disks/{disk.Name}"
 )
 
@@ -66,8 +66,9 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	project := gceCS.Driver.project
 
 	// Check arguments
-	if req.GetVersion() == nil {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume Version must be provided")
+	err := gceCS.Driver.CheckVersion(req.GetVersion())
+	if err != nil {
+		return nil, err
 	}
 	if len(req.Name) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Name must be provided")
@@ -247,6 +248,12 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 
 	svc := gceCS.Driver.cloudService
 
+	// TODO: Check arguments
+	err := gceCS.Driver.CheckVersion(req.GetVersion())
+	if err != nil {
+		return nil, err
+	}
+
 	project, zone, name, err := splitProjectZoneNameId(req.VolumeId)
 	if err != nil{
 		return nil, err
@@ -287,8 +294,9 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 	project := gceCS.Driver.project
 
 	// Check arguments
-	if req.GetVersion() == nil {
-		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Version must be provided")
+	err := gceCS.Driver.CheckVersion(req.GetVersion())
+	if err != nil {
+		return nil, err
 	}
 	if len(req.VolumeId) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
@@ -308,6 +316,8 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 	if err != nil{
 		return nil, err
 	}
+
+	//TODO: check volume capability matches...?
 
 	pubVolResp := &csi.ControllerPublishVolumeResponse{
 		// TODO: Should this have anything?
@@ -376,8 +386,9 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	glog.Infof("ControllerUnpublishVolume called with request %v", *req)
 
 	// Check arguments
-	if req.GetVersion() == nil {
-		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Version must be provided")
+	err := gceCS.Driver.CheckVersion(req.GetVersion())
+	if err != nil {
+		return nil, err
 	}
 	if len(req.VolumeId) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
@@ -521,21 +532,18 @@ func (gceCS *GCEControllerServer) GetCapacity(ctx context.Context, req *csi.GetC
 }
 
 func (gceCS *GCEControllerServer) ControllerProbe(ctx context.Context, req *csi.ControllerProbeRequest) (*csi.ControllerProbeResponse, error) {
-	// TODO: revisit this because just using default
 	glog.V(5).Infof("Using default ControllerProbe")
 
 	if err := gceCS.Driver.ValidateControllerServiceRequest(req.Version, csi.ControllerServiceCapability_RPC_UNKNOWN); err != nil {
 		return nil, err
 	}
+
+	//TODO: do checks for gcecloud service set, project set, other parameters set?
 	return &csi.ControllerProbeResponse{}, nil
 }
 
 // ControllerGetCapabilities implements the default GRPC callout.
-// Default supports all capabilities
 func (gceCS *GCEControllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
-	// TODO: revisit this because just using default
-	glog.V(5).Infof("Using default ControllerGetCapabilities")
-
 	return &csi.ControllerGetCapabilitiesResponse{
 		Capabilities: gceCS.Driver.cscap,
 	}, nil
