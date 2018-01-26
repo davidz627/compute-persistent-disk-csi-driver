@@ -15,7 +15,7 @@ limitations under the License.
 package gceGCEDriver
 
 //TODO make error messages better, of form "{Call}{args} error: {error}"
-//TODO all functions should actually have real return values according to spec
+//TODO figure out how to pass in credentials in a compelling manner
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -96,31 +96,16 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	diskType := ""
 	configuredZone := ""
 	zonePresent := false
-	/*
-	configuredZones := ""
-	configuredReplicaZones := ""
-	zonesPresent := false
-	replicaZonesPresent := false
-	fstype := ""
-	*/
 	for k, v := range req.GetParameters() {
 		switch strings.ToLower(k) {
 		case "type":
 			glog.Infof("Setting type: %v", v)
 			diskType = v
+		// TODO: can we get the zone from anywhere else?
+		// currently from the storageclass and thats cumbersome
 		case "zone":
 			zonePresent = true
 			configuredZone = v
-		/*
-		case "zones":
-			zonesPresent = true
-			configuredZones = v
-		case "replica-zones":
-			replicaZonesPresent = true
-			configuredReplicaZones = v
-		case "fstype":
-			fstype = v
-		*/
 		default:
 			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid option %q", k))
 		}
@@ -159,7 +144,8 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	diskToCreate := &compute.Disk{
 		Name:        req.Name,
 		SizeGb:      BytesToGb(capBytes),
-		//TODO: Is this description important for anything
+		// TODO: Is this description important for anything
+		// maybe persist access mode
 		Description: "PD Created by CSI Driver",
 		Type:        getDiskTypeURI(project, configuredZone, diskType),
 	}

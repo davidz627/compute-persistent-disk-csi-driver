@@ -67,6 +67,7 @@ spec:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(KUBE_NODE_NAME)"
+            #TODO: Fix project
             - "--project=dyzz-test"
           env:
             - name: CSI_ENDPOINT

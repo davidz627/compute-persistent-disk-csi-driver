@@ -34,7 +34,7 @@ var (
 	project = flag.String("project", "", "project to provision storage in")
 	//TODO(dyzz): make this a flag?
 	version = csi.Version{
-		Minor: 2,
+		Minor: 1,
 	}
 )
 

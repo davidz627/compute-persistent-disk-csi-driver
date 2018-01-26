@@ -1,3 +1,4 @@
+#TODO: Force DaemonSet to not run on master.
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
@@ -12,10 +13,7 @@ spec:
       labels:
         app: csi-gce-driver
     spec:
-      tolerations:
-        - key: node-role.kubernetes.io/master
-          effect: NoSchedule
-      serviceAccount: csi-gce
+      serviceAccount: csi-gce-pd
       containers:
         - name: csi-driver-registrar
           imagePullPolicy: Always
@@ -45,6 +43,8 @@ spec:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(KUBE_NODE_NAME)"
+            #TODO: Fix project
+            - "--project=dyzz-test"
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
@@ -62,7 +62,7 @@ spec:
         - name: registrar-socket-dir
           hostPath:
             path: /var/lib/kubelet/device-plugins/
-            type: Directory
+            type: DirectoryOrCreate
         - name: kubelet-dir
           hostPath:
             path: /var/lib/kubelet

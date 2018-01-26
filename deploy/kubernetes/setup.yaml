@@ -4,6 +4,8 @@ metadata:
   name: csi-gce-pd
 provisioner: csi-gce-pd
 parameters:
+  type: pd-standard
+  zone: us-central1-b
 
 ---
 
