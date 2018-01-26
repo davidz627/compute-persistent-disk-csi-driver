@@ -19,7 +19,7 @@ import (
 	"os"
 	"github.com/golang/glog"
 
-	driver "github.com/davidz627/gce-csi-driver/pkg/gce-csi-driver"
+	driver "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-csi-driver"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 

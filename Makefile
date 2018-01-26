@@ -18,6 +18,7 @@ VERSION=latest
 all: gce-driver
 
 gce-driver:
+	mkdir -p bin
 	go build -o bin/gce-csi-driver ./cmd/
 
 build-container: gce-driver

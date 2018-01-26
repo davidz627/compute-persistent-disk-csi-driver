@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	compute "google.golang.org/api/compute/v1"
-	gceprovider "github.com/davidz627/gce-csi-driver/pkg/gce-cloud-provider"
+	gceprovider "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 	"strings"
 	"fmt"
 )

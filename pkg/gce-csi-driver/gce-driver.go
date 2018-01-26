@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	compute "google.golang.org/api/compute/v1"
-	gce "github.com/davidz627/gce-csi-driver/pkg/gce-cloud-provider"
+	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 )
 
 type GCEDriver struct{
