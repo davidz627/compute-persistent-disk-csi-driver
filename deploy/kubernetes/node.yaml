@@ -29,8 +29,10 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           volumeMounts:
-            - name: registrar-socket-dir
-              mountPath: /var/lib/csi/sockets/
+            - name: plugin-dir
+              mountPath: /csi
+          #  - name: registrar-socket-dir
+          #    mountPath: /var/lib/csi/sockets/
         - name: gce-driver
           securityContext:
             privileged: true
@@ -59,10 +61,11 @@ spec:
             - name: plugin-dir
               mountPath: /csi
       volumes:
-        - name: registrar-socket-dir
-          hostPath:
-            path: /var/lib/kubelet/device-plugins/
-            type: DirectoryOrCreate
+        # TODO: this will work when registrar functionality exists
+        #- name: registrar-socket-dir
+        #  hostPath:
+        #    path: /var/lib/kubelet/device-plugins/
+        #    type: DirectoryOrCreate
         - name: kubelet-dir
           hostPath:
             path: /var/lib/kubelet

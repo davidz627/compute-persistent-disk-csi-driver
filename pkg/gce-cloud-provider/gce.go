@@ -35,7 +35,13 @@ const(
 )
 
 func CreateCloudService() (*compute.Service, error){
-	client, err := newOauthClient()
+	//TODO: support alternate methods of authentication?
+	svc, err := createCloudServiceWithDefaultServiceAccount()
+	return svc, err
+}
+
+func createCloudServiceWithDefaultServiceAccount() (*compute.Service, error){
+	client, err := newDefaultOauthClient()
 	if err != nil {
 		return nil, err
 	}
@@ -45,31 +51,14 @@ func CreateCloudService() (*compute.Service, error){
 	}
 	//TODO(dyzz) maybe add version here?
 	service.UserAgent = fmt.Sprintf("GCE CSI Driver/%s (%s %s)", "0.1.0", runtime.GOOS, runtime.GOARCH)
-
 	return service, nil
 }
 
 //TODO: Authenticate smarter. Check Kubernetes for better methods of auth.
 //TODO: Add alternative methods of authentication
-func newOauthClient() (*http.Client, error) {
-
-	var err error
-	tokenSource := google.ComputeTokenSource("")
-	glog.Infof("COMPUTE TOKEN SOURCE: %#v", tokenSource)
-	if err := wait.PollImmediate(5*time.Second, 30*time.Second, func() (bool, error) {
-		if _, err := tokenSource.Token(); err != nil {
-			glog.Errorf("error fetching initial token: %v", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Warningf("Cannot find compute token source. Are you running this on a non-GCE Instance?")
-	} else{
-		return oauth2.NewClient(oauth2.NoContext, tokenSource), nil
-	}
-
+func newDefaultOauthClient() (*http.Client, error) {
 	// No compute token source, fallback on default
-	tokenSource, err = google.DefaultTokenSource(
+	tokenSource, err := google.DefaultTokenSource(
 		oauth2.NoContext,
 		compute.CloudPlatformScope,
 		compute.ComputeScope)
@@ -77,7 +66,6 @@ func newOauthClient() (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-
 
 	if err := wait.PollImmediate(5*time.Second, 30*time.Second, func() (bool, error) {
 		if _, err := tokenSource.Token(); err != nil {

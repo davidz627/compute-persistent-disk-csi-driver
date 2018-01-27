@@ -294,10 +294,8 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume capability must be provided")
 	}
 
-	instanceProject, instanceZone, instanceName, err := splitProjectZoneNameId(req.NodeId)
-	if err != nil{
-		return nil, err
-	}
+	instanceName := req.NodeId
+
 	volumeProject , volumeZone, volumeName, err := splitProjectZoneNameId(req.VolumeId)
 	if err != nil{
 		return nil, err
@@ -314,7 +312,7 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 	if err != nil{
 		return nil, err
 	}
-	instance, err := getInstanceOrError(ctx, svc, instanceProject, instanceZone, instanceName)
+	instance, err := getInstanceOrError(ctx, svc, volumeProject, volumeZone, instanceName)
 	if err != nil{
 		return nil, err
 	}
@@ -347,12 +345,12 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 	}
 
 	attachOp, err := svc.Instances.AttachDisk(
-		project, instanceZone, instanceName, attachedDiskV1).Do()
+		project, volumeZone, instanceName, attachedDiskV1).Do()
 	if err != nil{
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Attach error: %v", err))
 	}
 
-	err = gceprovider.WaitForOp(attachOp, project, instanceZone, svc)
+	err = gceprovider.WaitForOp(attachOp, project, volumeZone, svc)
 	if err != nil{
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Attach operation error: %v", err))
 	}
@@ -386,10 +384,8 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	svc := gceCS.Driver.cloudService
 	project := gceCS.Driver.project
 
-	instanceProject, instanceZone, instanceName, err := splitProjectZoneNameId(req.NodeId)
-	if err != nil{
-		return nil, err
-	}
+	instanceName := req.NodeId
+
 	volumeProject, volumeZone, volumeName, err := splitProjectZoneNameId(req.VolumeId)
 	if err != nil{
 		return nil, err
@@ -399,7 +395,7 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	if err != nil{
 		return nil, err
 	}
-	instance, err := getInstanceOrError(ctx, svc, instanceProject, instanceZone, instanceName)
+	instance, err := getInstanceOrError(ctx, svc, volumeProject, volumeZone, instanceName)
 	if err != nil{
 		return nil, err
 	}
@@ -413,12 +409,12 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	}
 	
 	detachOp, err := svc.Instances.DetachDisk(
-		project, instanceZone, instanceName, volumeName).Do()
+		project, volumeZone, instanceName, volumeName).Do()
 	if err != nil{
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown detach error: %v", err))
 	}
 
-	err = gceprovider.WaitForOp(detachOp, project, instanceZone, svc)
+	err = gceprovider.WaitForOp(detachOp, project, volumeZone, svc)
 	if err != nil{
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown detach operation error: %v", err))
 	}

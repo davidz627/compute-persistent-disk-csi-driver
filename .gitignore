@@ -1,8 +1,8 @@
 # Compiled binaries and deployment files 
-/bin/
+bin/
 
 # Personal testing
-/test/
+test/
 
 # Binaries for programs and plugins
 *.exe

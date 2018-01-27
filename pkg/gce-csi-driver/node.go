@@ -62,28 +62,18 @@ const (
 
 func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	// Super rudimentary mount that works.
-	svc := ns.Driver.cloudService
-
 	// TODO: check other arguments
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
 		return nil, err
 	}
 
-	volumeProject, volumeZone, volumeName, err := splitProjectZoneNameId(req.VolumeId)
+	_, _, volumeName, err := splitProjectZoneNameId(req.VolumeId)
 	if err != nil{
 		return nil, err
 	}
 
-	_, err = getDiskOrError(ctx, svc, volumeProject, volumeZone, volumeName)
-	if err != nil{
-		return nil, err
-	}
-	// TODO: is using nodeID ok.
-	instance, err := getInstanceOrError(ctx, svc, volumeProject, volumeZone, ns.Driver.nodeID)
-	if err != nil{
-		return nil, err
-	}
+	// TODO: Check volume still exists?
 
 	// Part 1: Get device path of attached device
 	sdBefore, err := filepath.Glob(diskSDPattern)
@@ -122,15 +112,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 	}
 
 	if !notMnt{
-		for _, disk := range instance.Disks{
-			if disk.DeviceName == volumeName{
-				if !matchDiskMode(disk, req.Readonly){
-					return nil, status.Error(codes.AlreadyExists,
-						 fmt.Sprintf("Disk already mounted with incompatible mode. Mounted with %v, requested readonly %v",
-							 disk.Mode, req.Readonly))
-				}
-			}
-		}
+		// TODO: validate disk mode
 		
 		// TODO: Check who is mounted here. No error if its us
 		return nil, fmt.Errorf("already a mount point")
@@ -429,23 +411,14 @@ func udevadmChangeToDrive(drivePath string) error {
 
 
 func (ns *GCENodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	glog.Infof("NodeUnpublishVolume called with args: %v", req)
-	svc := ns.Driver.cloudService
-	
+	glog.Infof("NodeUnpublishVolume called with args: %v", req)	
 	//TODO: check arguments
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
 		return nil, err
 	}
 
-	volumeProject, volumeZone, volumeName, err := splitProjectZoneNameId(req.VolumeId)
-	if err != nil{
-		return nil, err
-	}
-	_, err = getDiskOrError(ctx, svc, volumeProject, volumeZone, volumeName)
-	if err != nil{
-		return nil, err
-	}
+	//TODO: Check volume still exists..?
 
 	output, err := execRun("umount", req.TargetPath)
 	if err != nil {
