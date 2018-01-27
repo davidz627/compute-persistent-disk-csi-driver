@@ -45,7 +45,7 @@ spec:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(KUBE_NODE_NAME)"
-            #TODO: Fix project
+            #TODO: Don't hardcode project
             - "--project=dyzz-test"
           env:
             - name: CSI_ENDPOINT
@@ -61,7 +61,7 @@ spec:
             - name: plugin-dir
               mountPath: /csi
       volumes:
-        # TODO: this will work when registrar functionality exists
+        # TODO(dependency): this will work when kublet registrar functionality exists
         #- name: registrar-socket-dir
         #  hostPath:
         #    path: /var/lib/kubelet/device-plugins/

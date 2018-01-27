@@ -14,9 +14,6 @@ limitations under the License.
 
 package gceGCEDriver
 
-//TODO make error messages better, of form "{Call}{args} error: {error}"
-//TODO figure out how to pass in credentials in a compelling manner
-
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
@@ -43,13 +40,11 @@ const (
 	DiskTypeSSD      = "pd-ssd"
 	DiskTypeStandard = "pd-standard"
 
-	diskTypeDefault               = DiskTypeStandard
-
-	
+	diskTypeDefault               = DiskTypeStandard	
 )
 
 func getRequestCapacity(capRange *csi.CapacityRange) (capBytes uint64){
-	//TODO(dyzz): take another look at these casts/caps
+	// TODO: Take another look at these casts/caps. Make sure this func is correct
 	if tcap := capRange.RequiredBytes; tcap > 0{
 		capBytes = tcap
 	} else if tcap = capRange.LimitBytes; tcap > 0{
@@ -85,7 +80,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return nil, status.Error(codes.OutOfRange, fmt.Sprintf("CreateVolume Capacity range required bytes cannot be greater than %v", MaxVolumeSize))
 	}
 
-	// TODO: validate volume capabilities
+	// TODO: Validate volume capabilities
 
 	capBytes := getRequestCapacity(req.GetCapacityRange())
 
@@ -100,8 +95,6 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		case "type":
 			glog.Infof("Setting type: %v", v)
 			diskType = v
-		// TODO: can we get the zone from anywhere else?
-		// currently from the storageclass and thats cumbersome
 		case "zone":
 			zonePresent = true
 			configuredZone = v
@@ -122,7 +115,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		VolumeInfo: &csi.VolumeInfo{
 			CapacityBytes: capBytes,
 			Id: utils.CombineVolumeId(gceCS.CloudProvider.Project, configuredZone, req.Name),
-			//TODO: what are attributes for
+			//TODO: Are there any attributes we need to add. These get sent to ControllerPublishVolume
 			Attributes: nil,
 		},
 	}
@@ -143,9 +136,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	diskToCreate := &compute.Disk{
 		Name:        req.Name,
 		SizeGb:      utils.BytesToGb(capBytes),
-		// TODO: Is this description important for anything
-		// maybe persist access mode
-		Description: "PD Created by CSI Driver",
+		Description: "Disk created by GCE-PD CSI Driver",
 		Type:        gceCS.CloudProvider.GetDiskTypeURI(configuredZone, diskType),
 	}
 
@@ -188,7 +179,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 }
 
 func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	// TODO: should we only be able to delete volumes created by the CSI driver, or all volumes in that project?
+	// TODO: Only allow deletion of volumes that were created by the driver
 	// Assuming ID is of form {project}/{zone}/{id}
 	glog.Infof("DeleteVolume called with request %v", *req)
 
@@ -248,10 +239,10 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 		return nil, err
 	}
 
-	//TODO: check volume capability matches...?
+	//TODO: Check volume capability matches
 
 	pubVolResp := &csi.ControllerPublishVolumeResponse{
-		// TODO: Should this have anything?
+		// TODO: Info gets sent to NodePublishVolume. Send something if necessary.
 		PublishVolumeInfo: nil,
 	}
 
@@ -358,7 +349,7 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
-//TODO: this abstraction isn't great. We shouldn't need diskIsAttached AND diskIsAttachedAndCompatible to duplicate code
+//TODO: This abstraction isn't great. We shouldn't need diskIsAttached AND diskIsAttachedAndCompatible to duplicate code
 func diskIsAttached(volume *compute.Disk, instance *compute.Instance) (bool) {
 	for _, disk := range instance.Disks {
 		if disk.DeviceName == volume.Name {
@@ -376,7 +367,7 @@ func diskIsAttachedAndCompatible(volume *compute.Disk, instance *compute.Instanc
 			if disk.Mode != readWrite{
 				return true, fmt.Errorf("disk mode does not match. Got %v. Want %v", disk.Mode, readWrite)
 			}
-			// TODO: check volume_capability.
+			// TODO: Check volume_capability.
 			return true, nil
 		}
 	}
@@ -385,7 +376,7 @@ func diskIsAttachedAndCompatible(volume *compute.Disk, instance *compute.Instanc
 
 
 func (gceCS *GCEControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-	// TODO: revisit this, this is just the default
+	// TODO: Factor out the volume capability functionality and use as validation in all other functions as well
 	glog.V(5).Infof("Using default ValidateVolumeCapabilities")
 
 	for _, c := range req.GetVolumeCapabilities() {
@@ -428,7 +419,7 @@ func (gceCS *GCEControllerServer) ControllerProbe(ctx context.Context, req *csi.
 		return nil, err
 	}
 
-	//TODO: do checks for gcecloud service set, project set, other parameters set?
+	//TODO: Do checks for gcecloud service set, project set, other parameters set?
 	return &csi.ControllerProbeResponse{}, nil
 }
 

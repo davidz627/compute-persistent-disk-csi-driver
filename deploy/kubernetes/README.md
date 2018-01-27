@@ -1,6 +1,6 @@
 Step 1 (Create Credentials):
 Create Service Account Credential JSON on GCP:
-    - TODO: Add steps on how
+    - TODO: Add detailed steps on how to do this
     - Requires both Instance Owner and Instance Disk Owner permissions 
 Create Kubernetes secret:
     -kubectl create secret generic cloud-sa --from-file=cloud-sa.json

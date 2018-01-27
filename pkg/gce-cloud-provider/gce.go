@@ -50,10 +50,9 @@ func CreateCloudProvider() (*CloudProvider, error){
 	if err != nil{
 		return nil, err
 	}
-	// TODO: use metadata server or flags to retrieve project and zone. DONT HARDCODE
+	// TODO: Use metadata server or flags to retrieve project and zone. Fallback on flag if necessary
 	/*
 	project, zone, err := gce.GetProjectAndZone()
-	// TODO: need some backup method of getting project and zone in case metadata not working
 	if err != nil{
 		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
 	}
@@ -70,7 +69,7 @@ func CreateCloudProvider() (*CloudProvider, error){
 }
 
 func createCloudService() (*compute.Service, error){
-	//TODO: support alternate methods of authentication?
+	//TODO: support alternate methods of authentication
 	svc, err := createCloudServiceWithDefaultServiceAccount()
 	return svc, err
 }
@@ -84,13 +83,11 @@ func createCloudServiceWithDefaultServiceAccount() (*compute.Service, error){
 	if err != nil {
 		return nil, err
 	}
-	//TODO(dyzz) maybe add version here?
+	//TODO Plumb version through to here? Not sure if necessary
 	service.UserAgent = fmt.Sprintf("GCE CSI Driver/%s (%s %s)", "0.1.0", runtime.GOOS, runtime.GOARCH)
 	return service, nil
 }
 
-//TODO: Authenticate smarter. Check Kubernetes for better methods of auth.
-//TODO: Add alternative methods of authentication
 func newDefaultOauthClient() (*http.Client, error) {
 	// No compute token source, fallback on default
 	tokenSource, err := google.DefaultTokenSource(
@@ -149,18 +146,15 @@ func IsGCEError(err error, reason string) bool {
 }
 
 func (cloud *CloudProvider) WaitForOp(ctx context.Context, op *compute.Operation, zone string) error{
-	//TODO: Vendor API MACHINERY
-	//TODO: timeouts?
 	svc := cloud.Service
 	project := cloud.Project
+	//TODO: Double check that these timeouts are reasonable
 	return wait.Poll( 3 * time.Second, 5 * time.Minute, func() (bool, error) {
 		pollOp, err := svc.ZoneOperations.Get(project, zone, op.Name).Context(ctx).Do()
 		if err != nil {
-			//TODO some sort of error handling here
-			glog.Errorf("error")
+			glog.Errorf("WaitForOp(op: %#v, zone: %#v) failed to poll the operation", op, zone)
 			return false, err
 		}
-
 		done := opIsDone(pollOp)
 		return done, err
 	})

@@ -32,9 +32,6 @@ import (
 	utils "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/utils"
 )
 
-//TODO: fix up error handling so all internal methods just give a normal error.
-// The code should only show up at the top RPC level.
-
 type GCENodeServer struct {
 	Driver *GCEDriver
 }
@@ -63,7 +60,7 @@ const (
 
 func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	// Super rudimentary mount that works.
-	// TODO: check other arguments
+	// TODO: Check other arguments
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
 		return nil, err
@@ -84,7 +81,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 	}
 	sdBeforeSet := sets.NewString(sdBefore...)
 	
-	//TODO: get real partitions?
+	// TODO: Get real partitions
 	partition := "" 
 
 	devicePaths := getDiskByIdPaths(volumeName, partition)
@@ -113,7 +110,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 	}
 
 	if !notMnt{
-		// TODO: validate disk mode
+		// TODO: Validate disk mode
 		
 		// TODO: Check who is mounted here. No error if its us
 		return nil, fmt.Errorf("already a mount point")
@@ -134,7 +131,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 			options = append(options, flag)
 		}
 	} else if  blk := req.GetVolumeCapability().GetBlock(); blk != nil{
-		// TODO: block volume support
+		// TODO: Block volume support
 		return nil, status.Error(codes.Unimplemented, fmt.Sprintf("Block volume support is not yet implemented"))
 	}	
 
@@ -413,13 +410,13 @@ func udevadmChangeToDrive(drivePath string) error {
 
 func (ns *GCENodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	glog.Infof("NodeUnpublishVolume called with args: %v", req)	
-	//TODO: check arguments
+	// TODO: Check arguments
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
 		return nil, err
 	}
 
-	//TODO: Check volume still exists..?
+	// TODO: Check volume still exists
 
 	output, err := execRun("umount", req.TargetPath)
 	if err != nil {
@@ -430,8 +427,7 @@ func (ns *GCENodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeU
 }
 
 func (ns *GCENodeServer) GetNodeID(ctx context.Context, req *csi.GetNodeIDRequest) (*csi.GetNodeIDResponse, error) {
-	//TODO: This is a default function, needs implementation
-	glog.V(5).Infof("Using default GetNodeID")
+	glog.Infof("GetNodeID called with req: %#v", req)
 
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
@@ -444,8 +440,7 @@ func (ns *GCENodeServer) GetNodeID(ctx context.Context, req *csi.GetNodeIDReques
 }
 
 func (ns *GCENodeServer) NodeProbe(ctx context.Context, req *csi.NodeProbeRequest) (*csi.NodeProbeResponse, error) {
-	//TODO: This is a default function, needs implementation
-	glog.V(5).Infof("Using default NodeProbe")
+	glog.Infof("NodeProbe called with req: %#v", req)
 
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {
@@ -456,8 +451,7 @@ func (ns *GCENodeServer) NodeProbe(ctx context.Context, req *csi.NodeProbeReques
 }
 
 func (ns *GCENodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
-	//TODO: This is a default function, needs implementation
-	glog.V(5).Infof("Using default NodeGetCapabilities")
+	glog.Infof("NodeGetCapabilities called with req: %#v", req)
 
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {

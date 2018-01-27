@@ -77,12 +77,9 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
 	}
 	gceDriver.AddVolumeCapabilityAccessModes(vcam)
-	//TODO(dyzz) do we actually support all of these?
 	csc := []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
-		//csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
-		//csi.ControllerServiceCapability_RPC_GET_CAPACITY,
 	}
 	gceDriver.AddControllerServiceCapabilities(csc)
 
@@ -181,7 +178,7 @@ func (gceDriver *GCEDriver) Run(endpoint string){
 
 	//Start the nonblocking GRPC
 	s := NewNonBlockingGRPCServer()
-	// TODO(dyzz): add in the other servers.
+	// TODO: Only start specific servers based on a flag.
 	// In the future have this only run specific combinations of servers depending on which version this is.
 	// The schema for that was in util. basically it was just s.start but with some nil servers.
 	s.Start(endpoint, gceDriver.ids, gceDriver.cs, gceDriver.ns)

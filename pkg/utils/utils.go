@@ -22,6 +22,7 @@ import (
 )
 
 func BytesToGb(bytes uint64) int64{
+	// TODO: What if this divides to 0. Default min size or throw error?
 	return int64(bytes/1000000000)
 }
 
