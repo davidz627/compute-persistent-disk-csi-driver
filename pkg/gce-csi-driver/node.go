@@ -29,6 +29,7 @@ import (
 	"os"
 	"syscall"
 	compute "google.golang.org/api/compute/v1"
+	utils "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/utils"
 )
 
 //TODO: fix up error handling so all internal methods just give a normal error.
@@ -68,7 +69,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 		return nil, err
 	}
 
-	_, _, volumeName, err := splitProjectZoneNameId(req.VolumeId)
+	_, _, volumeName, err := utils.SplitProjectZoneNameId(req.VolumeId)
 	if err != nil{
 		return nil, err
 	}
@@ -93,7 +94,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Error verifying GCE PD (%q) is attached: %v", volumeName, err))
 	} 
 	if devicePath == ""{
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Something is wrong, we are unable to find the device path"))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to find device path out of attempted paths: %v", devicePaths))
 	}
 
 	glog.Infof("Successfully found attached GCE PD %q at device path %s.", volumeName, devicePath)

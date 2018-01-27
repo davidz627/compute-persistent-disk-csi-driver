@@ -27,14 +27,49 @@ import(
 		"cloud.google.com/go/compute/metadata"
 		"time"
 		"k8s.io/apimachinery/pkg/util/wait"
+		"google.golang.org/grpc/codes"
+		"google.golang.org/grpc/status"
+		"golang.org/x/net/context"
 )
 
 const(
 	TokenURL = "https://accounts.google.com/o/oauth2/token"
-
+	diskSourceURITemplateSingleZone = "%s/zones/%s/disks/%s"   // {gce.projectID}/zones/{disk.Zone}/disks/{disk.Name}"
+	diskTypeURITemplateSingleZone = "projects/%s/zones/%s/diskTypes/%s"   // projects/{gce.projectID}/zones/{disk.Zone}/diskTypes/{disk.Type}"
 )
 
-func CreateCloudService() (*compute.Service, error){
+
+type CloudProvider struct{
+	Service *compute.Service
+	Project string
+	Zone string
+}
+
+func CreateCloudProvider() (*CloudProvider, error){
+	svc, err := createCloudService()
+	if err != nil{
+		return nil, err
+	}
+	// TODO: use metadata server or flags to retrieve project and zone. DONT HARDCODE
+	/*
+	project, zone, err := gce.GetProjectAndZone()
+	// TODO: need some backup method of getting project and zone in case metadata not working
+	if err != nil{
+		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
+	}
+	gceDriver.project = project
+	gceDriver.zone = zone
+	*/
+
+	return &CloudProvider{
+		Service: svc,
+		Project: "dyzz-test",
+		Zone: "us-centra1-b",
+	}, nil
+
+}
+
+func createCloudService() (*compute.Service, error){
 	//TODO: support alternate methods of authentication?
 	svc, err := createCloudServiceWithDefaultServiceAccount()
 	return svc, err
@@ -113,11 +148,13 @@ func IsGCEError(err error, reason string) bool {
 	return false
 }
 
-func WaitForOp(op *compute.Operation, project, zone string, svc *compute.Service) error{
+func (cloud *CloudProvider) WaitForOp(ctx context.Context, op *compute.Operation, zone string) error{
 	//TODO: Vendor API MACHINERY
 	//TODO: timeouts?
+	svc := cloud.Service
+	project := cloud.Project
 	return wait.Poll( 3 * time.Second, 5 * time.Minute, func() (bool, error) {
-		pollOp, err := svc.ZoneOperations.Get(project, zone, op.Name).Do()
+		pollOp, err := svc.ZoneOperations.Get(project, zone, op.Name).Context(ctx).Do()
 		if err != nil {
 			//TODO some sort of error handling here
 			glog.Errorf("error")
@@ -131,4 +168,34 @@ func WaitForOp(op *compute.Operation, project, zone string, svc *compute.Service
 
 func opIsDone(op *compute.Operation) bool {
 	return op != nil && op.Status == "DONE"
+}
+
+
+
+func (cloud *CloudProvider) GetInstanceOrError(ctx context.Context, instanceZone, instanceName string) (*compute.Instance, error){
+	svc := cloud.Service
+	project := cloud.Project
+	glog.Infof("Getting instance %v from zone %v", instanceName, instanceZone)
+	instance, err := svc.Instances.Get(project, instanceZone, instanceName).Do()
+	if err != nil {
+		if IsGCEError(err, "notFound"){
+			return nil, status.Error(codes.NotFound, fmt.Sprintf("instance %v does not exist", instanceName)) 
+		}
+
+		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown instance GET error: %v", err))
+	}
+	glog.Infof("Got instance %v from zone %v", instanceName, instanceZone)
+	return instance, nil
+}
+
+func (cloud *CloudProvider) GetDiskSourceURI(disk *compute.Disk, zone string) string {
+	return cloud.Service.BasePath + fmt.Sprintf(
+		diskSourceURITemplateSingleZone,
+		cloud.Project,
+		zone,
+		disk.Name)
+}
+
+func (cloud *CloudProvider) GetDiskTypeURI(zone, diskType string) string{
+	return fmt.Sprintf(diskTypeURITemplateSingleZone, cloud.Project, zone, diskType)
 }

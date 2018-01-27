@@ -83,11 +83,3 @@ func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, h
 	}
 	return resp, err
 }
-
-func BytesToGb(bytes uint64) int64{
-	return int64(bytes/1000000000)
-}
-
-func GbToBytes(Gb int64) uint64{
-	return uint64(Gb*1000000000)
-}

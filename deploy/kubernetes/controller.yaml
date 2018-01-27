@@ -77,7 +77,7 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: GOOGLE_APPLICATION_CREDENTIALS
-              value: "/etc/cloud-sa/dyzz-test-7bd858a76af5.json"
+              value: "/etc/cloud-sa/cloud-sa.json"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi

@@ -20,7 +20,6 @@ import (
 	"google.golang.org/grpc/status"
 	"fmt"
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	compute "google.golang.org/api/compute/v1"
 	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 )
 
@@ -37,10 +36,6 @@ type GCEDriver struct{
 
 	vcap   []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
-
-	cloudService *compute.Service
-	project string
-	zone string
 }
 
 func GetGCEDriver() *GCEDriver {
@@ -94,26 +89,14 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	// Set up RPC Servers
 	gceDriver.ids = NewIdentityServer(gceDriver)
 	gceDriver.ns = NewNodeServer(gceDriver)
-	gceDriver.cs = NewControllerServer(gceDriver)
 
-	svc, err := gce.CreateCloudService()
+	cloudProvider, err := gce.CreateCloudProvider()
 	if err != nil{
-		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
+		return err
 	}
-	gceDriver.cloudService = svc
+	gceDriver.cs = NewControllerServer(gceDriver, cloudProvider)
 
-	/*
-	// TODO: This only works when running on a GCE instance I think...
-	project, zone, err := gce.GetProjectAndZone()
-	// TODO: need some backup method of getting project and zone in case metadata not working
-	if err != nil{
-		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
-	}
-	gceDriver.project = project
-	gceDriver.zone = zone
-	*/
-	gceDriver.project = project
-
+	
 	return nil
 }
 
@@ -171,9 +154,10 @@ func NewNodeServer(gceDriver *GCEDriver) *GCENodeServer{
 	}
 }
 
-func NewControllerServer(gceDriver *GCEDriver) *GCEControllerServer {
+func NewControllerServer(gceDriver *GCEDriver, cloudProvider *gce.CloudProvider) *GCEControllerServer {
 	return &GCEControllerServer{
 		Driver: gceDriver,
+		CloudProvider: cloudProvider,
 	}
 }
 
