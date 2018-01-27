@@ -32,7 +32,6 @@ var (
 	driverName = flag.String("drivername", "csi-gce", "name of the driver")
 	nodeID     = flag.String("nodeid", "", "node id")
 	project = flag.String("project", "", "project to provision storage in")
-	//TODO(dyzz): make this a flag?
 	version = csi.Version{
 		Minor: 1,
 	}

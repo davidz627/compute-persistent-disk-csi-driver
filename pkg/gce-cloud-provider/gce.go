@@ -36,6 +36,8 @@ const(
 	TokenURL = "https://accounts.google.com/o/oauth2/token"
 	diskSourceURITemplateSingleZone = "%s/zones/%s/disks/%s"   // {gce.projectID}/zones/{disk.Zone}/disks/{disk.Name}"
 	diskTypeURITemplateSingleZone = "projects/%s/zones/%s/diskTypes/%s"   // projects/{gce.projectID}/zones/{disk.Zone}/diskTypes/{disk.Type}"
+
+	gceComputeAPIEndpoint      = "https://www.googleapis.com/compute/v1/"
 )
 
 
@@ -69,7 +71,7 @@ func CreateCloudProvider() (*CloudProvider, error){
 }
 
 func createCloudService() (*compute.Service, error){
-	//TODO: support alternate methods of authentication
+	// TODO: support alternate methods of authentication
 	svc, err := createCloudServiceWithDefaultServiceAccount()
 	return svc, err
 }
@@ -83,7 +85,7 @@ func createCloudServiceWithDefaultServiceAccount() (*compute.Service, error){
 	if err != nil {
 		return nil, err
 	}
-	//TODO Plumb version through to here? Not sure if necessary
+	// TODO: Plumb version through to here? Not sure if necessary
 	service.UserAgent = fmt.Sprintf("GCE CSI Driver/%s (%s %s)", "0.1.0", runtime.GOOS, runtime.GOARCH)
 	return service, nil
 }
@@ -148,7 +150,7 @@ func IsGCEError(err error, reason string) bool {
 func (cloud *CloudProvider) WaitForOp(ctx context.Context, op *compute.Operation, zone string) error{
 	svc := cloud.Service
 	project := cloud.Project
-	//TODO: Double check that these timeouts are reasonable
+	// TODO: Double check that these timeouts are reasonable
 	return wait.Poll( 3 * time.Second, 5 * time.Minute, func() (bool, error) {
 		pollOp, err := svc.ZoneOperations.Get(project, zone, op.Name).Context(ctx).Do()
 		if err != nil {
@@ -183,7 +185,12 @@ func (cloud *CloudProvider) GetInstanceOrError(ctx context.Context, instanceZone
 }
 
 func (cloud *CloudProvider) GetDiskSourceURI(disk *compute.Disk, zone string) string {
-	return cloud.Service.BasePath + fmt.Sprintf(
+	projectsApiEndpoint := gceComputeAPIEndpoint + "projects/"
+	if cloud.Service != nil {
+		projectsApiEndpoint = cloud.Service.BasePath
+	}
+
+	return projectsApiEndpoint+ fmt.Sprintf(
 		diskSourceURITemplateSingleZone,
 		cloud.Project,
 		zone,

@@ -22,11 +22,12 @@ import (
 )
 
 func BytesToGb(bytes uint64) int64{
-	// TODO: What if this divides to 0. Default min size or throw error?
+	// TODO: Throw an error when div to 0
 	return int64(bytes/1000000000)
 }
 
 func GbToBytes(Gb int64) uint64{
+	// TODO: Check for overflow
 	return uint64(Gb*1000000000)
 }
 

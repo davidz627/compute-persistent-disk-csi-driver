@@ -27,6 +27,10 @@ import (
 	"fmt"
 )
 
+// TODO: Add noisy glog.V(5).Infof() EVERYWHERE
+// TODO: Improve errors to only expose codes at top level
+// TODO: Improve error prefix to explicitly state what function it is in.
+
 type GCEControllerServer struct {
 	Driver *GCEDriver
 	CloudProvider *gceprovider.CloudProvider
@@ -36,6 +40,7 @@ const (
 	// MaxVolumeSize is the maximum standard and ssd size of 64TB
 	MaxVolumeSize uint64 = 64000000000000
 	DefaultVolumeSize uint64 = 5000000000
+	MinimumDiskSizeInGb = 5
 
 	DiskTypeSSD      = "pd-ssd"
 	DiskTypeStandard = "pd-standard"
@@ -115,7 +120,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		VolumeInfo: &csi.VolumeInfo{
 			CapacityBytes: capBytes,
 			Id: utils.CombineVolumeId(gceCS.CloudProvider.Project, configuredZone, req.Name),
-			//TODO: Are there any attributes we need to add. These get sent to ControllerPublishVolume
+			// TODO: Are there any attributes we need to add. These get sent to ControllerPublishVolume
 			Attributes: nil,
 		},
 	}
@@ -133,9 +138,13 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return createResp, nil
 	}
 	
+	sizeGb := utils.BytesToGb(capBytes)
+	if sizeGb < MinimumDiskSizeInGb{
+		sizeGb = MinimumDiskSizeInGb
+	}
 	diskToCreate := &compute.Disk{
 		Name:        req.Name,
-		SizeGb:      utils.BytesToGb(capBytes),
+		SizeGb:      sizeGb,
 		Description: "Disk created by GCE-PD CSI Driver",
 		Type:        gceCS.CloudProvider.GetDiskTypeURI(configuredZone, diskType),
 	}
@@ -239,7 +248,7 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 		return nil, err
 	}
 
-	//TODO: Check volume capability matches
+	// TODO: Check volume capability matches
 
 	pubVolResp := &csi.ControllerPublishVolumeResponse{
 		// TODO: Info gets sent to NodePublishVolume. Send something if necessary.
@@ -280,11 +289,12 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 		Type:       disk.Type,
 	}
 
-	glog.Infof("Attaching disk %v to instance %v", disk.Name, instanceName)
+	glog.Infof("Attaching disk %#v to instance %v", attachedDiskV1, instanceName)
 	attachOp, err := gceCS.CloudProvider.AttachDisk(ctx, volumeZone, instanceName, attachedDiskV1)
 	if err != nil{
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Attach error: %v", err))
 	}
+	glog.Infof("RESPONSE: %#v", attachOp)
 
 	glog.Infof("Waiting for attach of disk %v to instance %v to complete...", disk.Name, instanceName)
 	err = gceCS.CloudProvider.WaitForOp(ctx, attachOp, volumeZone)
@@ -349,7 +359,7 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
-//TODO: This abstraction isn't great. We shouldn't need diskIsAttached AND diskIsAttachedAndCompatible to duplicate code
+// TODO: This abstraction isn't great. We shouldn't need diskIsAttached AND diskIsAttachedAndCompatible to duplicate code
 func diskIsAttached(volume *compute.Disk, instance *compute.Instance) (bool) {
 	for _, disk := range instance.Disks {
 		if disk.DeviceName == volume.Name {
@@ -419,7 +429,7 @@ func (gceCS *GCEControllerServer) ControllerProbe(ctx context.Context, req *csi.
 		return nil, err
 	}
 
-	//TODO: Do checks for gcecloud service set, project set, other parameters set?
+	// TODO: Do checks for gcecloud service set, project set, other parameters set?
 	return &csi.ControllerProbeResponse{}, nil
 }
 
