@@ -15,21 +15,22 @@ limitations under the License.
 package gceGCEDriver
 
 import (
+	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"syscall"
+
+	utils "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
+	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"path"
-	"path/filepath"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"fmt"
-	"strings"
 	"k8s.io/utils/exec"
-	"os"
-	"syscall"
-	compute "google.golang.org/api/compute/v1"
-	utils "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/utils"
 )
 
 type GCENodeServer struct {
@@ -55,7 +56,7 @@ const (
 	fsckErrorsCorrected = 1
 	// 'fsck' found errors but exited without correcting them
 	fsckErrorsUncorrected = 4
-	defaultMountCommand           = "mount"
+	defaultMountCommand   = "mount"
 )
 
 func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -67,7 +68,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 	}
 
 	_, _, volumeName, err := utils.SplitProjectZoneNameId(req.VolumeId)
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 
@@ -80,17 +81,17 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 		glog.Errorf("Error filepath.Glob(\"%s\"): %v\r\n", diskSDPattern, err)
 	}
 	sdBeforeSet := sets.NewString(sdBefore...)
-	
+
 	// TODO: Get real partitions
-	partition := "" 
+	partition := ""
 
 	devicePaths := getDiskByIdPaths(volumeName, partition)
 	devicePath, err := verifyDevicePath(devicePaths, sdBeforeSet)
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Error verifying GCE PD (%q) is attached: %v", volumeName, err))
-	} 
-	if devicePath == ""{
+	}
+	if devicePath == "" {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to find device path out of attempted paths: %v", devicePaths))
 	}
 
@@ -109,44 +110,43 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 		}
 	}
 
-	if !notMnt{
+	if !notMnt {
 		// TODO: Validate disk mode
-		
+
 		// TODO: Check who is mounted here. No error if its us
 		return nil, fmt.Errorf("already a mount point")
-		
+
 	}
 
-
 	// Part 3: Mount device to req.TargetPath
-	// Default fstype is ext4 
+	// Default fstype is ext4
 	fstype := "ext4"
 	options := []string{}
-	if mnt := req.GetVolumeCapability().GetMount(); mnt != nil{
-		if mnt.FsType != ""{
+	if mnt := req.GetVolumeCapability().GetMount(); mnt != nil {
+		if mnt.FsType != "" {
 			fstype = mnt.FsType
 		}
-		for _, flag := range mnt.MountFlags{
+		for _, flag := range mnt.MountFlags {
 			// TODO: Not sure if MountFlags == options
 			options = append(options, flag)
 		}
-	} else if  blk := req.GetVolumeCapability().GetBlock(); blk != nil{
+	} else if blk := req.GetVolumeCapability().GetBlock(); blk != nil {
 		// TODO: Block volume support
 		return nil, status.Error(codes.Unimplemented, fmt.Sprintf("Block volume support is not yet implemented"))
-	}	
+	}
 
 	err = formatAndMount(devicePath, req.TargetPath, fstype, options)
-	if err != nil{
+	if err != nil {
 		return nil, status.Error(codes.Internal,
-			 fmt.Sprintf("Failed to format and mount device from (%q) to (%q) with fstype (%q) and options (%q): %v",
-			  devicePath, req.TargetPath, fstype, options, err))
+			fmt.Sprintf("Failed to format and mount device from (%q) to (%q) with fstype (%q) and options (%q): %v",
+				devicePath, req.TargetPath, fstype, options, err))
 	}
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func matchDiskMode(disk *compute.AttachedDisk, readonly bool) bool{
-	if (disk.Mode == "READ_ONLY" && !readonly) || (disk.Mode == "READ_WRITE" && readonly){
+func matchDiskMode(disk *compute.AttachedDisk, readonly bool) bool {
+	if (disk.Mode == "READ_ONLY" && !readonly) || (disk.Mode == "READ_WRITE" && readonly) {
 		return false
 	}
 	return true
@@ -407,9 +407,8 @@ func udevadmChangeToDrive(drivePath string) error {
 	return nil
 }
 
-
 func (ns *GCENodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	glog.Infof("NodeUnpublishVolume called with args: %v", req)	
+	glog.Infof("NodeUnpublishVolume called with args: %v", req)
 	// TODO: Check arguments
 	err := ns.Driver.CheckVersion(req.GetVersion())
 	if err != nil {

@@ -15,17 +15,18 @@ limitations under the License.
 package gceGCEDriver
 
 import (
+	"fmt"
+
+	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"fmt"
-	"github.com/container-storage-interface/spec/lib/go/csi"
-	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 )
 
-type GCEDriver struct{
-	name    string
-	nodeID  string
+type GCEDriver struct {
+	name   string
+	nodeID string
 
 	ids *GCEIdentityServer
 	ns  *GCENodeServer
@@ -34,7 +35,7 @@ type GCEDriver struct{
 	version *csi.Version
 	supVers []*csi.Version
 
-	vcap   []*csi.VolumeCapability_AccessMode
+	vcap  []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
 }
 
@@ -42,7 +43,7 @@ func GetGCEDriver() *GCEDriver {
 	return &GCEDriver{}
 }
 
-func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers []*csi.Version, nodeID, project string) error{
+func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers []*csi.Version, nodeID, project string) error {
 	if name == "" {
 		return fmt.Errorf("Driver name missing")
 	}
@@ -52,7 +53,7 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	if v == nil {
 		return fmt.Errorf("Version argument missing")
 	}
-	if project == ""{
+	if project == "" {
 		return fmt.Errorf("Project missing")
 	}
 
@@ -88,12 +89,11 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 	gceDriver.ns = NewNodeServer(gceDriver)
 
 	cloudProvider, err := gce.CreateCloudProvider()
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	gceDriver.cs = NewControllerServer(gceDriver, cloudProvider)
 
-	
 	return nil
 }
 
@@ -107,7 +107,7 @@ func (gceDriver *GCEDriver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapabi
 	return nil
 }
 
-func (gceDriver *GCEDriver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) error{
+func (gceDriver *GCEDriver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) error {
 	var csc []*csi.ControllerServiceCapability
 	for _, c := range cl {
 		glog.Infof("Enabling controller service capability: %v", c.String())
@@ -145,7 +145,7 @@ func NewIdentityServer(gceDriver *GCEDriver) *GCEIdentityServer {
 	}
 }
 
-func NewNodeServer(gceDriver *GCEDriver) *GCENodeServer{
+func NewNodeServer(gceDriver *GCEDriver) *GCENodeServer {
 	return &GCENodeServer{
 		Driver: gceDriver,
 	}
@@ -153,7 +153,7 @@ func NewNodeServer(gceDriver *GCEDriver) *GCENodeServer{
 
 func NewControllerServer(gceDriver *GCEDriver, cloudProvider *gce.CloudProvider) *GCEControllerServer {
 	return &GCEControllerServer{
-		Driver: gceDriver,
+		Driver:        gceDriver,
 		CloudProvider: cloudProvider,
 	}
 }
@@ -173,7 +173,7 @@ func (gceDriver *GCEDriver) CheckVersion(v *csi.Version) error {
 	return status.Error(codes.InvalidArgument, "Unsupported version: "+GetVersionString(v))
 }
 
-func (gceDriver *GCEDriver) Run(endpoint string){
+func (gceDriver *GCEDriver) Run(endpoint string) {
 	glog.Infof("Driver: %v version: %v", gceDriver.name, GetVersionString(gceDriver.version))
 
 	//Start the nonblocking GRPC
@@ -184,4 +184,3 @@ func (gceDriver *GCEDriver) Run(endpoint string){
 	s.Start(endpoint, gceDriver.ids, gceDriver.cs, gceDriver.ns)
 	s.Wait()
 }
-

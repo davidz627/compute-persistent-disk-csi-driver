@@ -17,28 +17,28 @@ limitations under the License.
 package utils
 
 import (
-	"strings"
 	"fmt"
+	"strings"
 )
 
-func BytesToGb(bytes uint64) int64{
+func BytesToGb(bytes uint64) int64 {
 	// TODO: Throw an error when div to 0
-	return int64(bytes/1000000000)
+	return int64(bytes / 1000000000)
 }
 
-func GbToBytes(Gb int64) uint64{
+func GbToBytes(Gb int64) uint64 {
 	// TODO: Check for overflow
-	return uint64(Gb*1000000000)
+	return uint64(Gb * 1000000000)
 }
 
-func SplitProjectZoneNameId(id string) (string, string, string, error){
+func SplitProjectZoneNameId(id string) (string, string, string, error) {
 	splitId := strings.Split(id, "/")
-	if len(splitId) != 3{
-		return "","","", fmt.Errorf("Failed to get id components. Expected {project}/{zone}/{name}. Got: %s", id)
+	if len(splitId) != 3 {
+		return "", "", "", fmt.Errorf("Failed to get id components. Expected {project}/{zone}/{name}. Got: %s", id)
 	}
 	return splitId[0], splitId[1], splitId[2], nil
 }
 
-func CombineVolumeId(project, zone, name string) string{
+func CombineVolumeId(project, zone, name string) string {
 	return fmt.Sprintf("%s/%s/%s", project, zone, name)
 }

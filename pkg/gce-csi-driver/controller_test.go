@@ -13,8 +13,3 @@ limitations under the License.
 */
 
 package gceGCEDriver
-
-import (
-
-)
-

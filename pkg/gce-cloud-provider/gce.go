@@ -14,69 +14,69 @@ limitations under the License.
 
 package gcecloudprovider
 
-import(
-		compute "google.golang.org/api/compute/v1"
-		"github.com/golang/glog"
-		"golang.org/x/oauth2"
-		"golang.org/x/oauth2/google"
-		"net/http"
-		"fmt"
-		"runtime"
-		"strings"
-		"google.golang.org/api/googleapi"
-		"cloud.google.com/go/compute/metadata"
-		"time"
-		"k8s.io/apimachinery/pkg/util/wait"
-		"google.golang.org/grpc/codes"
-		"google.golang.org/grpc/status"
-		"golang.org/x/net/context"
+import (
+	"fmt"
+	"net/http"
+	"runtime"
+	"strings"
+	"time"
+
+	"cloud.google.com/go/compute/metadata"
+	"github.com/golang/glog"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/googleapi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-const(
-	TokenURL = "https://accounts.google.com/o/oauth2/token"
-	diskSourceURITemplateSingleZone = "%s/zones/%s/disks/%s"   // {gce.projectID}/zones/{disk.Zone}/disks/{disk.Name}"
-	diskTypeURITemplateSingleZone = "projects/%s/zones/%s/diskTypes/%s"   // projects/{gce.projectID}/zones/{disk.Zone}/diskTypes/{disk.Type}"
+const (
+	TokenURL                        = "https://accounts.google.com/o/oauth2/token"
+	diskSourceURITemplateSingleZone = "%s/zones/%s/disks/%s"              // {gce.projectID}/zones/{disk.Zone}/disks/{disk.Name}"
+	diskTypeURITemplateSingleZone   = "projects/%s/zones/%s/diskTypes/%s" // projects/{gce.projectID}/zones/{disk.Zone}/diskTypes/{disk.Type}"
 
-	gceComputeAPIEndpoint      = "https://www.googleapis.com/compute/v1/"
+	gceComputeAPIEndpoint = "https://www.googleapis.com/compute/v1/"
 )
 
-
-type CloudProvider struct{
+type CloudProvider struct {
 	Service *compute.Service
 	Project string
-	Zone string
+	Zone    string
 }
 
-func CreateCloudProvider() (*CloudProvider, error){
+func CreateCloudProvider() (*CloudProvider, error) {
 	svc, err := createCloudService()
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 	// TODO: Use metadata server or flags to retrieve project and zone. Fallback on flag if necessary
 	/*
-	project, zone, err := gce.GetProjectAndZone()
-	if err != nil{
-		return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
-	}
-	gceDriver.project = project
-	gceDriver.zone = zone
+		project, zone, err := gce.GetProjectAndZone()
+		if err != nil{
+			return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
+		}
+		gceDriver.project = project
+		gceDriver.zone = zone
 	*/
 
 	return &CloudProvider{
 		Service: svc,
 		Project: "dyzz-test",
-		Zone: "us-centra1-b",
+		Zone:    "us-centra1-b",
 	}, nil
 
 }
 
-func createCloudService() (*compute.Service, error){
+func createCloudService() (*compute.Service, error) {
 	// TODO: support alternate methods of authentication
 	svc, err := createCloudServiceWithDefaultServiceAccount()
 	return svc, err
 }
 
-func createCloudServiceWithDefaultServiceAccount() (*compute.Service, error){
+func createCloudServiceWithDefaultServiceAccount() (*compute.Service, error) {
 	client, err := newDefaultOauthClient()
 	if err != nil {
 		return nil, err
@@ -147,11 +147,11 @@ func IsGCEError(err error, reason string) bool {
 	return false
 }
 
-func (cloud *CloudProvider) WaitForOp(ctx context.Context, op *compute.Operation, zone string) error{
+func (cloud *CloudProvider) WaitForOp(ctx context.Context, op *compute.Operation, zone string) error {
 	svc := cloud.Service
 	project := cloud.Project
 	// TODO: Double check that these timeouts are reasonable
-	return wait.Poll( 3 * time.Second, 5 * time.Minute, func() (bool, error) {
+	return wait.Poll(3*time.Second, 5*time.Minute, func() (bool, error) {
 		pollOp, err := svc.ZoneOperations.Get(project, zone, op.Name).Context(ctx).Do()
 		if err != nil {
 			glog.Errorf("WaitForOp(op: %#v, zone: %#v) failed to poll the operation", op, zone)
@@ -166,16 +166,14 @@ func opIsDone(op *compute.Operation) bool {
 	return op != nil && op.Status == "DONE"
 }
 
-
-
-func (cloud *CloudProvider) GetInstanceOrError(ctx context.Context, instanceZone, instanceName string) (*compute.Instance, error){
+func (cloud *CloudProvider) GetInstanceOrError(ctx context.Context, instanceZone, instanceName string) (*compute.Instance, error) {
 	svc := cloud.Service
 	project := cloud.Project
 	glog.Infof("Getting instance %v from zone %v", instanceName, instanceZone)
 	instance, err := svc.Instances.Get(project, instanceZone, instanceName).Do()
 	if err != nil {
-		if IsGCEError(err, "notFound"){
-			return nil, status.Error(codes.NotFound, fmt.Sprintf("instance %v does not exist", instanceName)) 
+		if IsGCEError(err, "notFound") {
+			return nil, status.Error(codes.NotFound, fmt.Sprintf("instance %v does not exist", instanceName))
 		}
 
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown instance GET error: %v", err))
@@ -190,13 +188,13 @@ func (cloud *CloudProvider) GetDiskSourceURI(disk *compute.Disk, zone string) st
 		projectsApiEndpoint = cloud.Service.BasePath
 	}
 
-	return projectsApiEndpoint+ fmt.Sprintf(
+	return projectsApiEndpoint + fmt.Sprintf(
 		diskSourceURITemplateSingleZone,
 		cloud.Project,
 		zone,
 		disk.Name)
 }
 
-func (cloud *CloudProvider) GetDiskTypeURI(zone, diskType string) string{
+func (cloud *CloudProvider) GetDiskTypeURI(zone, diskType string) string {
 	return fmt.Sprintf(diskTypeURITemplateSingleZone, cloud.Project, zone, diskType)
 }

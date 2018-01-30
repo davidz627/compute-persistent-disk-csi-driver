@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"os"
+
 	"github.com/golang/glog"
 
 	driver "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-csi-driver"
@@ -31,8 +32,8 @@ var (
 	endpoint   = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
 	driverName = flag.String("drivername", "csi-gce", "name of the driver")
 	nodeID     = flag.String("nodeid", "", "node id")
-	project = flag.String("project", "", "project to provision storage in")
-	version = csi.Version{
+	project    = flag.String("project", "", "project to provision storage in")
+	version    = csi.Version{
 		Minor: 1,
 	}
 )
@@ -49,7 +50,7 @@ func handle() {
 
 	//Initialize GCE Driver (Move setup to main?)
 	err := gceDriver.SetupGCEDriver(*driverName, &version, []*csi.Version{&version}, *nodeID, *project)
-	if err != nil{
+	if err != nil {
 		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
 	}
 
