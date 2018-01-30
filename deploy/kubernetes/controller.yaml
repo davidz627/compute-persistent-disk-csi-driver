@@ -16,7 +16,7 @@ spec:
 kind: StatefulSet
 apiVersion: apps/v1beta1
 metadata:
-  name: csi-gce-pd-driver
+  name: csi-gce-controller
 spec:
   serviceName: "csi-gce-pd"
   replicas: 1

@@ -17,6 +17,7 @@ package gcecloudprovider
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -65,7 +66,7 @@ func CreateCloudProvider() (*CloudProvider, error) {
 	return &CloudProvider{
 		Service: svc,
 		Project: "dyzz-test",
-		Zone:    "us-centra1-b",
+		Zone:    "us-central1-b",
 	}, nil
 
 }
@@ -96,6 +97,11 @@ func newDefaultOauthClient() (*http.Client, error) {
 		oauth2.NoContext,
 		compute.CloudPlatformScope,
 		compute.ComputeScope)
+	if gac, ok := os.LookupEnv("GOOGLE_APPLICATION_CREDENTIALS"); ok {
+		glog.Infof("GOOGLE_APPLICATION_CREDENTISLS env var set %v", gac)
+	} else {
+		glog.Warningf("GOOGLE_APPLICATION_CREDENTISLS env var not set")
+	}
 	glog.Infof("Using DefaultTokenSource %#v", tokenSource)
 	if err != nil {
 		return nil, err

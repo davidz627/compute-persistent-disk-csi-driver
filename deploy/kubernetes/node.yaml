@@ -2,7 +2,7 @@
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
-  name: csi-gce-ds
+  name: csi-gce-node
 spec:
   selector:
     matchLabels:
@@ -60,6 +60,8 @@ spec:
               mountPropagation: "Bidirectional"
             - name: plugin-dir
               mountPath: /csi
+            - name: device-dir
+              mountPath: /dev/disk/by-id
       volumes:
         # TODO(dependency): this will work when kublet registrar functionality exists
         #- name: registrar-socket-dir
@@ -74,3 +76,7 @@ spec:
           hostPath:
             path: /var/lib/kubelet/plugins/csi-gce/
             type: DirectoryOrCreate
+        - name: device-dir
+          hostPath:
+            path: /dev/disk/by-id/
+            type: Directory

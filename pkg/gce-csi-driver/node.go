@@ -330,6 +330,7 @@ func getDiskByIdPaths(pdName string, partition string) []string {
 
 // Returns the first path that exists, or empty string if none exist.
 func verifyDevicePath(devicePaths []string, sdBeforeSet sets.String) (string, error) {
+	// TODO: Remove this udevadm stuff. Not applicable because can't access /dev/sd* from container
 	if err := udevadmChangeToNewDrives(sdBeforeSet); err != nil {
 		// udevadm errors should not block disk detachment, log and continue
 		glog.Errorf("udevadmChangeToNewDrives failed with: %v", err)
