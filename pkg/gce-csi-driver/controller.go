@@ -63,6 +63,7 @@ func getRequestCapacity(capRange *csi.CapacityRange) (capBytes uint64) {
 }
 
 func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	// TODO: Check create zone against Driver zone. They must MATCH
 	glog.Infof("CreateVolume called with request %v", *req)
 
 	// Check arguments

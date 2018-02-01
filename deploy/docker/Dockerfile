@@ -15,4 +15,7 @@
 FROM fedora:26
 
 COPY gce-csi-driver /gce-csi-driver
+
+RUN yum -y install "*/mkfs.ext4"
+
 ENTRYPOINT ["/gce-csi-driver"]

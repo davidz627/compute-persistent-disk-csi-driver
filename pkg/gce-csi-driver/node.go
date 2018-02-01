@@ -38,12 +38,12 @@ type GCENodeServer struct {
 }
 
 const (
-	diskByIdPath         = "/dev/disk/by-id/"
+	diskByIdPath         = "/host/dev/disk/by-id/"
 	diskGooglePrefix     = "google-"
 	diskScsiGooglePrefix = "scsi-0Google_PersistentDisk_"
 	diskPartitionSuffix  = "-part"
-	diskSDPath           = "/dev/sd"
-	diskSDPattern        = "/dev/sd*"
+	diskSDPath           = "/host/dev/sd"
+	diskSDPattern        = "/host/dev/sd*"
 	// How many times to retry for a consistent read of /proc/mounts.
 	maxListTries = 3
 	// Number of fields per line in /proc/mounts as per the fstab man page.

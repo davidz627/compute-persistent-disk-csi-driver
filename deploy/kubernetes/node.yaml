@@ -61,7 +61,7 @@ spec:
             - name: plugin-dir
               mountPath: /csi
             - name: device-dir
-              mountPath: /dev/disk/by-id
+              mountPath: /host/dev
       volumes:
         # TODO(dependency): this will work when kublet registrar functionality exists
         #- name: registrar-socket-dir
@@ -78,5 +78,5 @@ spec:
             type: DirectoryOrCreate
         - name: device-dir
           hostPath:
-            path: /dev/disk/by-id/
+            path: /dev
             type: Directory
