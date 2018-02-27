@@ -86,8 +86,7 @@ func createCloudServiceWithDefaultServiceAccount() (*compute.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Plumb version through to here? Not sure if necessary
-	service.UserAgent = fmt.Sprintf("GCE CSI Driver/%s (%s %s)", "0.1.0", runtime.GOOS, runtime.GOARCH)
+	service.UserAgent = fmt.Sprintf("GCE CSI Driver/%s (%s %s)", "0.2.0", runtime.GOOS, runtime.GOARCH)
 	return service, nil
 }
 

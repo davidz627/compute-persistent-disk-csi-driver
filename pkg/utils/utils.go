@@ -21,14 +21,14 @@ import (
 	"strings"
 )
 
-func BytesToGb(bytes uint64) int64 {
+func BytesToGb(bytes int64) int64 {
 	// TODO: Throw an error when div to 0
-	return int64(bytes / 1000000000)
+	return bytes / 1000000000
 }
 
-func GbToBytes(Gb int64) uint64 {
+func GbToBytes(Gb int64) int64 {
 	// TODO: Check for overflow
-	return uint64(Gb * 1000000000)
+	return Gb * 1000000000
 }
 
 func SplitProjectZoneNameId(id string) (string, string, string, error) {

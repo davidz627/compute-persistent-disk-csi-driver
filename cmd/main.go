@@ -21,7 +21,6 @@ import (
 	"github.com/golang/glog"
 
 	driver "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-csi-driver"
-	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 func init() {
@@ -29,13 +28,11 @@ func init() {
 }
 
 var (
-	endpoint   = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
+	endpoint = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
+	// TODO(dyzz) change com.google.csi.gcepd
 	driverName = flag.String("drivername", "csi-gce", "name of the driver")
 	nodeID     = flag.String("nodeid", "", "node id")
 	project    = flag.String("project", "", "project to provision storage in")
-	version    = csi.Version{
-		Minor: 1,
-	}
 )
 
 func main() {
@@ -49,7 +46,7 @@ func handle() {
 	gceDriver := driver.GetGCEDriver()
 
 	//Initialize GCE Driver (Move setup to main?)
-	err := gceDriver.SetupGCEDriver(*driverName, &version, []*csi.Version{&version}, *nodeID, *project)
+	err := gceDriver.SetupGCEDriver(*driverName, *nodeID, *project)
 	if err != nil {
 		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
 	}

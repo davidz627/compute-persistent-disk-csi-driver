@@ -20,38 +20,8 @@ package gceGCEDriver
 import (
 	"testing"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestGetVersionFromString(t *testing.T) {
-
-	//Invalid version
-	_, err := GetVersionFromString("")
-	assert.NotNil(t, err)
-
-	v, err := GetVersionFromString("1.2.3")
-	assert.NoError(t, err)
-	assert.Equal(t, v.Major, uint32(1))
-	assert.Equal(t, v.Minor, uint32(2))
-	assert.Equal(t, v.Patch, uint32(3))
-
-	// Invalid version
-	_, err = GetVersionFromString("1.2")
-	assert.NotNil(t, err)
-}
-
-func TestGetVersionString(t *testing.T) {
-
-	v := &csi.Version{
-		Major: 1,
-		Minor: 0,
-		Patch: 0,
-	}
-	//Invalid version
-	vStr := GetVersionString(v)
-	assert.Equal(t, vStr, "1.0.0")
-}
 
 func TestParseEndpoint(t *testing.T) {
 

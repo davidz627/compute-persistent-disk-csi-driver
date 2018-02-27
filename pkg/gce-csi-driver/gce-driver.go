@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
-	"github.com/container-storage-interface/spec/lib/go/csi"
+	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,44 +32,27 @@ type GCEDriver struct {
 	ns  *GCENodeServer
 	cs  *GCEControllerServer
 
-	version *csi.Version
-	supVers []*csi.Version
-
 	vcap  []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
+	nscap []*csi.NodeServiceCapability
 }
 
 func GetGCEDriver() *GCEDriver {
 	return &GCEDriver{}
 }
 
-func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers []*csi.Version, nodeID, project string) error {
+func (gceDriver *GCEDriver) SetupGCEDriver(name string, nodeID, project string) error {
 	if name == "" {
 		return fmt.Errorf("Driver name missing")
 	}
 	if nodeID == "" {
 		return fmt.Errorf("NodeID missing")
 	}
-	if v == nil {
-		return fmt.Errorf("Version argument missing")
-	}
 	if project == "" {
 		return fmt.Errorf("Project missing")
 	}
 
-	found := false
-	for _, sv := range supVers {
-		if sv.Major == v.Major && sv.Minor == v.Minor && sv.Patch == v.Patch {
-			found = true
-		}
-	}
-	if !found {
-		supVers = append(supVers, v)
-	}
-
 	gceDriver.name = name
-	gceDriver.version = v
-	gceDriver.supVers = supVers
 	gceDriver.nodeID = nodeID
 
 	// Adding Capabilities
@@ -83,6 +66,11 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, v *csi.Version, supVers 
 		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 	}
 	gceDriver.AddControllerServiceCapabilities(csc)
+	// TODO(dyzz) remove STAGE_UNSTAGE_VOLUME capability until supported
+	ns := []csi.NodeServiceCapability_RPC_Type{
+		csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
+	}
+	gceDriver.AddNodeServiceCapabilities(ns)
 
 	// Set up RPC Servers
 	gceDriver.ids = NewIdentityServer(gceDriver)
@@ -117,15 +105,17 @@ func (gceDriver *GCEDriver) AddControllerServiceCapabilities(cl []csi.Controller
 	return nil
 }
 
-func (gceDriver *GCEDriver) ValidateControllerServiceRequest(v *csi.Version, c csi.ControllerServiceCapability_RPC_Type) error {
-	if v == nil {
-		return status.Error(codes.InvalidArgument, "Version not specified")
+func (gceDriver *GCEDriver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_Type) error {
+	var nsc []*csi.NodeServiceCapability
+	for _, n := range nl {
+		glog.Infof("Enabling node service capability: %v", n.String())
+		nsc = append(nsc, NewNodeServiceCapability(n))
 	}
+	gceDriver.nscap = nsc
+	return nil
+}
 
-	if err := gceDriver.CheckVersion(v); err != nil {
-		return status.Error(codes.InvalidArgument, "Unsupported version")
-	}
-
+func (gceDriver *GCEDriver) ValidateControllerServiceRequest(c csi.ControllerServiceCapability_RPC_Type) error {
 	if c == csi.ControllerServiceCapability_RPC_UNKNOWN {
 		return nil
 	}
@@ -136,7 +126,7 @@ func (gceDriver *GCEDriver) ValidateControllerServiceRequest(v *csi.Version, c c
 		}
 	}
 
-	return status.Error(codes.InvalidArgument, "Unsupported version: "+GetVersionString(v))
+	return status.Error(codes.InvalidArgument, "TODO(dyzz): ERROR")
 }
 
 func NewIdentityServer(gceDriver *GCEDriver) *GCEIdentityServer {
@@ -158,23 +148,8 @@ func NewControllerServer(gceDriver *GCEDriver, cloudProvider *gce.CloudProvider)
 	}
 }
 
-func (gceDriver *GCEDriver) CheckVersion(v *csi.Version) error {
-	if v == nil {
-		return status.Error(codes.InvalidArgument, "Version missing")
-	}
-
-	// DONT assume always backward compatible
-	for _, sv := range gceDriver.supVers {
-		if v.Major == sv.Major && v.Minor == sv.Minor {
-			return nil
-		}
-	}
-
-	return status.Error(codes.InvalidArgument, "Unsupported version: "+GetVersionString(v))
-}
-
 func (gceDriver *GCEDriver) Run(endpoint string) {
-	glog.Infof("Driver: %v version: %v", gceDriver.name, GetVersionString(gceDriver.version))
+	glog.Infof("Driver: %v", gceDriver.name)
 
 	//Start the nonblocking GRPC
 	s := NewNonBlockingGRPCServer()

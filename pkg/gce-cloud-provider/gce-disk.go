@@ -42,7 +42,7 @@ func (cloud *CloudProvider) GetDiskOrError(ctx context.Context, volumeZone, volu
 	return disk, nil
 }
 
-func (cloud *CloudProvider) GetAndValidateExistingDisk(ctx context.Context, configuredZone, name, diskType string, reqBytes, limBytes uint64) (exists bool, err error) {
+func (cloud *CloudProvider) GetAndValidateExistingDisk(ctx context.Context, configuredZone, name, diskType string, reqBytes, limBytes int64) (exists bool, err error) {
 	svc := cloud.Service
 	project := cloud.Project
 	resp, err := svc.Disks.Get(project, configuredZone, name).Context(ctx).Do()

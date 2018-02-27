@@ -15,7 +15,7 @@ limitations under the License.
 package gceGCEDriver
 
 import (
-	"github.com/container-storage-interface/spec/lib/go/csi"
+	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -26,14 +26,6 @@ type GCEIdentityServer struct {
 	Driver *GCEDriver
 }
 
-// GetSupportedVersions(context.Context, *GetSupportedVersionsRequest) (*GetSupportedVersionsResponse, error)
-func (gceIdentity *GCEIdentityServer) GetSupportedVersions(ctx context.Context, req *csi.GetSupportedVersionsRequest) (*csi.GetSupportedVersionsResponse, error) {
-	glog.V(5).Infof("Using default GetSupportedVersions")
-	return &csi.GetSupportedVersionsResponse{
-		SupportedVersions: gceIdentity.Driver.supVers,
-	}, nil
-}
-
 // GetPluginInfo(context.Context, *GetPluginInfoRequest) (*GetPluginInfoResponse, error)
 func (gceIdentity *GCEIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
 	glog.V(5).Infof("Using default GetPluginInfo")
@@ -42,15 +34,17 @@ func (gceIdentity *GCEIdentityServer) GetPluginInfo(ctx context.Context, req *cs
 		return nil, status.Error(codes.Unavailable, "Driver name not configured")
 	}
 
-	err := gceIdentity.Driver.CheckVersion(req.GetVersion())
-	if err != nil {
-		return nil, err
-	}
-
-	version := GetVersionString(gceIdentity.Driver.version)
-
 	return &csi.GetPluginInfoResponse{
-		Name:          gceIdentity.Driver.name,
-		VendorVersion: version,
+		Name: gceIdentity.Driver.name,
 	}, nil
+}
+
+func (gceIdentity *GCEIdentityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
+	glog.V(5).Infof("Using default GetPluginCapabilities")
+	return &csi.GetPluginCapabilitiesResponse{}, nil
+}
+
+func (gceIdentity *GCEIdentityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+	glog.Infof("Probe called with args: %#v", req)
+	return &csi.ProbeResponse{}, nil
 }

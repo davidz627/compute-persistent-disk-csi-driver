@@ -20,7 +20,7 @@ import (
 
 	gceprovider "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 	utils "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/utils"
-	"github.com/container-storage-interface/spec/lib/go/csi"
+	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	compute "google.golang.org/api/compute/v1"
@@ -39,9 +39,9 @@ type GCEControllerServer struct {
 
 const (
 	// MaxVolumeSize is the maximum standard and ssd size of 64TB
-	MaxVolumeSize       uint64 = 64000000000000
-	DefaultVolumeSize   uint64 = 5000000000
-	MinimumDiskSizeInGb        = 5
+	MaxVolumeSize       int64 = 64000000000000
+	DefaultVolumeSize   int64 = 5000000000
+	MinimumDiskSizeInGb       = 5
 
 	DiskTypeSSD      = "pd-ssd"
 	DiskTypeStandard = "pd-standard"
@@ -49,11 +49,11 @@ const (
 	diskTypeDefault = DiskTypeStandard
 )
 
-func getRequestCapacity(capRange *csi.CapacityRange) (capBytes uint64) {
+func getRequestCapacity(capRange *csi.CapacityRange) (capBytes int64) {
 	// TODO: Take another look at these casts/caps. Make sure this func is correct
-	if tcap := capRange.RequiredBytes; tcap > 0 {
+	if tcap := capRange.GetRequiredBytes(); tcap > 0 {
 		capBytes = tcap
-	} else if tcap = capRange.LimitBytes; tcap > 0 {
+	} else if tcap = capRange.GetLimitBytes(); tcap > 0 {
 		capBytes = tcap
 	} else {
 		// Default size
@@ -67,10 +67,6 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	glog.Infof("CreateVolume called with request %v", *req)
 
 	// Check arguments
-	err := gceCS.Driver.CheckVersion(req.GetVersion())
-	if err != nil {
-		return nil, err
-	}
 	if len(req.Name) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Name must be provided")
 	}
@@ -80,10 +76,10 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	if req.GetCapacityRange() == nil {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume CapacityRange must be specified")
 	}
-	if req.GetCapacityRange().RequiredBytes == 0 {
+	if req.GetCapacityRange().GetRequiredBytes() == 0 {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Capacity range required bytes cannot be zero")
 	}
-	if req.GetCapacityRange().RequiredBytes > MaxVolumeSize {
+	if req.GetCapacityRange().GetRequiredBytes() > MaxVolumeSize {
 		return nil, status.Error(codes.OutOfRange, fmt.Sprintf("CreateVolume Capacity range required bytes cannot be greater than %v", MaxVolumeSize))
 	}
 
@@ -119,7 +115,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	}
 
 	createResp := &csi.CreateVolumeResponse{
-		VolumeInfo: &csi.VolumeInfo{
+		Volume: &csi.Volume{
 			CapacityBytes: capBytes,
 			Id:            utils.CombineVolumeId(gceCS.CloudProvider.Project, configuredZone, req.Name),
 			// TODO: Are there any attributes we need to add. These get sent to ControllerPublishVolume
@@ -130,8 +126,8 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	// Check for existing disk of same name in same zone
 	exists, err := gceCS.CloudProvider.GetAndValidateExistingDisk(ctx, configuredZone,
 		req.Name, diskType,
-		req.GetCapacityRange().RequiredBytes,
-		req.GetCapacityRange().LimitBytes)
+		req.GetCapacityRange().GetRequiredBytes(),
+		req.GetCapacityRange().GetLimitBytes())
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +153,8 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		if gceprovider.IsGCEError(err, "alreadyExists") {
 			_, err := gceCS.CloudProvider.GetAndValidateExistingDisk(ctx, configuredZone,
 				req.Name, diskType,
-				req.GetCapacityRange().RequiredBytes,
-				req.GetCapacityRange().LimitBytes)
+				req.GetCapacityRange().GetRequiredBytes(),
+				req.GetCapacityRange().GetLimitBytes())
 			if err != nil {
 				return nil, err
 			}
@@ -174,8 +170,8 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		if gceprovider.IsGCEError(err, "alreadyExists") {
 			_, err := gceCS.CloudProvider.GetAndValidateExistingDisk(ctx, configuredZone,
 				req.Name, diskType,
-				req.GetCapacityRange().RequiredBytes,
-				req.GetCapacityRange().LimitBytes)
+				req.GetCapacityRange().GetRequiredBytes(),
+				req.GetCapacityRange().GetLimitBytes())
 			if err != nil {
 				return nil, err
 			}
@@ -195,10 +191,6 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	glog.Infof("DeleteVolume called with request %v", *req)
 
 	// TODO: Check arguments
-	err := gceCS.Driver.CheckVersion(req.GetVersion())
-	if err != nil {
-		return nil, err
-	}
 
 	_, zone, name, err := utils.SplitProjectZoneNameId(req.VolumeId)
 	if err != nil {
@@ -229,10 +221,6 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 	glog.Infof("ControllerPublishVolume called with request %v", *req)
 
 	// Check arguments
-	err := gceCS.Driver.CheckVersion(req.GetVersion())
-	if err != nil {
-		return nil, err
-	}
 	if len(req.VolumeId) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
 	}
@@ -254,7 +242,7 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 
 	pubVolResp := &csi.ControllerPublishVolumeResponse{
 		// TODO: Info gets sent to NodePublishVolume. Send something if necessary.
-		PublishVolumeInfo: nil,
+		PublishInfo: nil,
 	}
 
 	disk, err := gceCS.CloudProvider.GetDiskOrError(ctx, volumeZone, volumeName)
@@ -312,10 +300,6 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	glog.Infof("ControllerUnpublishVolume called with request %v", *req)
 
 	// Check arguments
-	err := gceCS.Driver.CheckVersion(req.GetVersion())
-	if err != nil {
-		return nil, err
-	}
 	if len(req.VolumeId) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
 	}
@@ -420,17 +404,6 @@ func (gceCS *GCEControllerServer) GetCapacity(ctx context.Context, req *csi.GetC
 	// https://cloud.google.com/compute/quotas
 	// DISKS_TOTAL_GB.
 	return nil, status.Error(codes.Unimplemented, "")
-}
-
-func (gceCS *GCEControllerServer) ControllerProbe(ctx context.Context, req *csi.ControllerProbeRequest) (*csi.ControllerProbeResponse, error) {
-	glog.V(5).Infof("Using default ControllerProbe")
-
-	if err := gceCS.Driver.ValidateControllerServiceRequest(req.Version, csi.ControllerServiceCapability_RPC_UNKNOWN); err != nil {
-		return nil, err
-	}
-
-	// TODO: Do checks for gcecloud service set, project set, other parameters set?
-	return &csi.ControllerProbeResponse{}, nil
 }
 
 // ControllerGetCapabilities implements the default GRPC callout.
