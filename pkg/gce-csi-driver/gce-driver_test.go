@@ -13,35 +13,3 @@ limitations under the License.
 */
 
 package gceGCEDriver
-
-/*
-import (
-	"testing"
-
-	"github.com/golang/glog"
-	"github.com/kubernetes-csi/csi-test/pkg/sanity"
-)
-
-func TestSanity(t *testing.T) {
-	// Set up variables
-	driverName := "test-driver"
-	nodeID := "test-node"
-	project := "test-project"
-	endpoint := "unix://tmp/csi.sock"
-	mountpoint := "unix://tmp/tempmount"
-
-	// Set up driver and env
-	gceDriver := GetGCEDriver()
-
-	//Initialize GCE Driver (Move setup to main?)
-	err := gceDriver.SetupGCEDriver(driverName, nodeID, project)
-	if err != nil {
-		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
-	}
-
-	gceDriver.Run(endpoint)
-
-	// Run test
-	sanity.Test(t, endpoint, mountpoint)
-}
-*/
