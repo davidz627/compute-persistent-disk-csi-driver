@@ -66,26 +66,23 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	// TODO: Check create zone against Driver zone. They must MATCH
 	glog.Infof("CreateVolume called with request %v", *req)
 
-	// Check arguments
-	if len(req.Name) == 0 {
+	// Validate arguments
+	volumeCapabilities := req.GetVolumeCapabilities()
+	name := req.GetName()
+	capacityRange := req.GetCapacityRange()
+	if len(name) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Name must be provided")
 	}
-	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
+	if volumeCapabilities == nil || len(volumeCapabilities) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Volume capabilities must be provided")
 	}
-	if req.GetCapacityRange() == nil {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume CapacityRange must be specified")
-	}
-	if req.GetCapacityRange().GetRequiredBytes() == 0 {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume Capacity range required bytes cannot be zero")
-	}
-	if req.GetCapacityRange().GetRequiredBytes() > MaxVolumeSize {
-		return nil, status.Error(codes.OutOfRange, fmt.Sprintf("CreateVolume Capacity range required bytes cannot be greater than %v", MaxVolumeSize))
+
+	capBytes := DefaultVolumeSize
+	if capacityRange != nil {
+		capBytes = getRequestCapacity(capacityRange)
 	}
 
 	// TODO: Validate volume capabilities
-
-	capBytes := getRequestCapacity(req.GetCapacityRange())
 
 	// TODO: Support replica zones and fs type. Can vendor in api-machinery stuff for sets etc.
 	// Apply Parameters (case-insensitive). We leave validation of
@@ -117,7 +114,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	createResp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes: capBytes,
-			Id:            utils.CombineVolumeId(gceCS.CloudProvider.Project, configuredZone, req.Name),
+			Id:            utils.CombineVolumeId(gceCS.CloudProvider.Project, configuredZone, name),
 			// TODO: Are there any attributes we need to add. These get sent to ControllerPublishVolume
 			Attributes: nil,
 		},
@@ -125,14 +122,14 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 	// Check for existing disk of same name in same zone
 	exists, err := gceCS.CloudProvider.GetAndValidateExistingDisk(ctx, configuredZone,
-		req.Name, diskType,
-		req.GetCapacityRange().GetRequiredBytes(),
-		req.GetCapacityRange().GetLimitBytes())
+		name, diskType,
+		capacityRange.GetRequiredBytes(),
+		capacityRange.GetLimitBytes())
 	if err != nil {
 		return nil, err
 	}
 	if exists {
-		glog.Warningf("GCE PD %s already exists, reusing", req.Name)
+		glog.Warningf("GCE PD %s already exists, reusing", name)
 		return createResp, nil
 	}
 
@@ -141,7 +138,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		sizeGb = MinimumDiskSizeInGb
 	}
 	diskToCreate := &compute.Disk{
-		Name:        req.Name,
+		Name:        name,
 		SizeGb:      sizeGb,
 		Description: "Disk created by GCE-PD CSI Driver",
 		Type:        gceCS.CloudProvider.GetDiskTypeURI(configuredZone, diskType),
@@ -152,13 +149,13 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	if err != nil {
 		if gceprovider.IsGCEError(err, "alreadyExists") {
 			_, err := gceCS.CloudProvider.GetAndValidateExistingDisk(ctx, configuredZone,
-				req.Name, diskType,
-				req.GetCapacityRange().GetRequiredBytes(),
-				req.GetCapacityRange().GetLimitBytes())
+				name, diskType,
+				capacityRange.GetRequiredBytes(),
+				capacityRange.GetLimitBytes())
 			if err != nil {
 				return nil, err
 			}
-			glog.Warningf("GCE PD %s already exists, reusing", req.Name)
+			glog.Warningf("GCE PD %s already exists, reusing", name)
 			return createResp, nil
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unkown Insert disk error: %v", err))
@@ -169,19 +166,19 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	if err != nil {
 		if gceprovider.IsGCEError(err, "alreadyExists") {
 			_, err := gceCS.CloudProvider.GetAndValidateExistingDisk(ctx, configuredZone,
-				req.Name, diskType,
-				req.GetCapacityRange().GetRequiredBytes(),
-				req.GetCapacityRange().GetLimitBytes())
+				name, diskType,
+				capacityRange.GetRequiredBytes(),
+				capacityRange.GetLimitBytes())
 			if err != nil {
 				return nil, err
 			}
-			glog.Warningf("GCE PD %s already exists after wait, reusing", req.Name)
+			glog.Warningf("GCE PD %s already exists after wait, reusing", name)
 			return createResp, nil
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unkown Insert disk operation error: %v", err))
 	}
 
-	glog.Infof("Completed creation of disk %v", req.Name)
+	glog.Infof("Completed creation of disk %v", name)
 	return createResp, nil
 }
 
@@ -190,9 +187,13 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	// Assuming ID is of form {project}/{zone}/{id}
 	glog.Infof("DeleteVolume called with request %v", *req)
 
-	// TODO: Check arguments
+	// Validate arguments
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "DeleteVolume Volume ID must be provided")
+	}
 
-	_, zone, name, err := utils.SplitProjectZoneNameId(req.VolumeId)
+	_, zone, name, err := utils.SplitProjectZoneNameId(volumeID)
 	if err != nil {
 		return nil, err
 	}
@@ -220,20 +221,22 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	glog.Infof("ControllerPublishVolume called with request %v", *req)
 
-	// Check arguments
-	if len(req.VolumeId) == 0 {
+	// Validate arguments
+	volumeID := req.GetVolumeId()
+	readOnly := req.GetReadonly()
+	nodeID := req.GetNodeId()
+	volumeCapability := req.GetVolumeCapability()
+	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
 	}
-	if len(req.NodeId) == 0 {
+	if len(nodeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Node ID must be provided")
 	}
-	if req.GetVolumeCapability() == nil {
+	if volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume capability must be provided")
 	}
 
-	instanceName := req.NodeId
-
-	_, volumeZone, volumeName, err := utils.SplitProjectZoneNameId(req.VolumeId)
+	_, volumeZone, volumeName, err := utils.SplitProjectZoneNameId(volumeID)
 	if err != nil {
 		return nil, err
 	}
@@ -249,23 +252,23 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 	if err != nil {
 		return nil, err
 	}
-	instance, err := gceCS.CloudProvider.GetInstanceOrError(ctx, volumeZone, instanceName)
+	instance, err := gceCS.CloudProvider.GetInstanceOrError(ctx, volumeZone, nodeID)
 	if err != nil {
 		return nil, err
 	}
 
 	readWrite := "READ_WRITE"
-	if req.Readonly {
+	if readOnly {
 		readWrite = "READ_ONLY"
 	}
 
-	attached, err := diskIsAttachedAndCompatible(disk, instance, req.GetVolumeCapability(), readWrite)
+	attached, err := diskIsAttachedAndCompatible(disk, instance, volumeCapability, readWrite)
 	if err != nil {
-		return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("Disk %v already published to node %v but incompatbile: %v", volumeName, instanceName, err))
+		return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("Disk %v already published to node %v but incompatbile: %v", volumeName, nodeID, err))
 	}
 	if attached {
 		// Volume is attached to node. Success!
-		glog.Infof("Attach operation is successful. PD %q was already attached to node %q.", volumeName, instanceName)
+		glog.Infof("Attach operation is successful. PD %q was already attached to node %q.", volumeName, nodeID)
 		return pubVolResp, nil
 	}
 
@@ -279,37 +282,37 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 		Type:       disk.Type,
 	}
 
-	glog.Infof("Attaching disk %#v to instance %v", attachedDiskV1, instanceName)
-	attachOp, err := gceCS.CloudProvider.AttachDisk(ctx, volumeZone, instanceName, attachedDiskV1)
+	glog.Infof("Attaching disk %#v to instance %v", attachedDiskV1, nodeID)
+	attachOp, err := gceCS.CloudProvider.AttachDisk(ctx, volumeZone, nodeID, attachedDiskV1)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Attach error: %v", err))
 	}
 	glog.Infof("RESPONSE: %#v", attachOp)
 
-	glog.Infof("Waiting for attach of disk %v to instance %v to complete...", disk.Name, instanceName)
+	glog.Infof("Waiting for attach of disk %v to instance %v to complete...", disk.Name, nodeID)
 	err = gceCS.CloudProvider.WaitForOp(ctx, attachOp, volumeZone)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Attach operation error: %v", err))
 	}
 
-	glog.Infof("Disk %v attached to instance %v successfully", disk.Name, instanceName)
+	glog.Infof("Disk %v attached to instance %v successfully", disk.Name, nodeID)
 	return pubVolResp, nil
 }
 
 func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	glog.Infof("ControllerUnpublishVolume called with request %v", *req)
 
-	// Check arguments
-	if len(req.VolumeId) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
+	// Validate arguments
+	volumeID := req.GetVolumeId()
+	nodeID := req.GetNodeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "ControllerUnpublishVolume Volume ID must be provided")
 	}
-	if len(req.NodeId) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Node ID must be provided")
+	if len(nodeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "ControllerUnpublishVolume Node ID must be provided")
 	}
 
-	instanceName := req.NodeId
-
-	_, volumeZone, volumeName, err := utils.SplitProjectZoneNameId(req.VolumeId)
+	_, volumeZone, volumeName, err := utils.SplitProjectZoneNameId(volumeID)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +321,7 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	instance, err := gceCS.CloudProvider.GetInstanceOrError(ctx, volumeZone, instanceName)
+	instance, err := gceCS.CloudProvider.GetInstanceOrError(ctx, volumeZone, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -327,11 +330,11 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 
 	if !attached {
 		// Volume is not attached to node. Success!
-		glog.Infof("Detach operation is successful. PD %q was not attached to node %q.", volumeName, instanceName)
+		glog.Infof("Detach operation is successful. PD %q was not attached to node %q.", volumeName, nodeID)
 		return &csi.ControllerUnpublishVolumeResponse{}, nil
 	}
 
-	detachOp, err := gceCS.CloudProvider.DetachDisk(ctx, volumeZone, instanceName, volumeName)
+	detachOp, err := gceCS.CloudProvider.DetachDisk(ctx, volumeZone, nodeID, volumeName)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown detach error: %v", err))
 	}

@@ -62,9 +62,24 @@ const (
 func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	glog.Infof("NodePublishVolume called with req: %#v", req)
 
-	// TODO(dyzz): Check for invalid arguments
+	// Validate Arguments
 	targetPath := req.GetTargetPath()
 	stagingTargetPath := req.GetStagingTargetPath()
+	readOnly := req.GetReadonly()
+	volumeID := req.GetVolumeId()
+	volumeCapability := req.GetVolumeCapability()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume ID must be provided")
+	}
+	if len(stagingTargetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Staging Target Path must be provided")
+	}
+	if len(targetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Target Path must be provided")
+	}
+	if volumeCapability == nil {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
+	}
 
 	notMnt, err := isLikelyNotMountPoint(targetPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -83,7 +98,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 
 	// Perform a bind mount to the full path to allow duplicate mounts of the same PD.
 	options := []string{"bind"}
-	if req.Readonly {
+	if readOnly {
 		options = append(options, "ro")
 	}
 
@@ -384,8 +399,15 @@ func udevadmChangeToDrive(drivePath string) error {
 
 func (ns *GCENodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	glog.Infof("NodeUnpublishVolume called with args: %v", req)
-	// TODO: Check arguments
+	// Validate Arguments
 	targetPath := req.GetTargetPath()
+	volID := req.GetVolumeId()
+	if len(volID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume Volume ID must be provided")
+	}
+	if len(targetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume Target Path must be provided")
+	}
 
 	// TODO: Check volume still exists
 
@@ -404,10 +426,22 @@ func unmountVolume(targetPath string) (string, error) {
 
 func (ns *GCENodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	glog.Infof("NodeStageVolume called with req: %#v", req)
-	// TODO(dyzz): Check Arguments
-	stagingTargetPath := req.GetStagingTargetPath()
 
-	_, _, volumeName, err := utils.SplitProjectZoneNameId(req.VolumeId)
+	// Validate Arguments
+	volumeID := req.GetVolumeId()
+	stagingTargetPath := req.GetStagingTargetPath()
+	volumeCapability := req.GetVolumeCapability()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume ID must be provided")
+	}
+	if len(stagingTargetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Staging Target Path must be provided")
+	}
+	if volumeCapability == nil {
+		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability must be provided")
+	}
+
+	_, _, volumeName, err := utils.SplitProjectZoneNameId(volumeID)
 	if err != nil {
 		return nil, err
 	}
@@ -462,7 +496,7 @@ func (ns *GCENodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStage
 	// Default fstype is ext4
 	fstype := "ext4"
 	options := []string{}
-	if mnt := req.GetVolumeCapability().GetMount(); mnt != nil {
+	if mnt := volumeCapability.GetMount(); mnt != nil {
 		if mnt.FsType != "" {
 			fstype = mnt.FsType
 		}
@@ -470,7 +504,7 @@ func (ns *GCENodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStage
 			// TODO: Not sure if MountFlags == options
 			options = append(options, flag)
 		}
-	} else if blk := req.GetVolumeCapability().GetBlock(); blk != nil {
+	} else if blk := volumeCapability.GetBlock(); blk != nil {
 		// TODO: Block volume support
 		return nil, status.Error(codes.Unimplemented, fmt.Sprintf("Block volume support is not yet implemented"))
 	}
@@ -487,12 +521,19 @@ func (ns *GCENodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStage
 
 func (ns *GCENodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	glog.Infof("NodeUnstageVolume called with req: %#v", req)
-	// TODO(dyzz) Validate arguments
+	// Validate arguments
+	volumeID := req.GetVolumeId()
 	stagingTargetPath := req.GetStagingTargetPath()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeUnstageVolume Volume ID must be provided")
+	}
+	if len(stagingTargetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeUnstageVolume Staging Target Path must be provided")
+	}
 
 	_, err := unmountVolume(stagingTargetPath)
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnstageVolume failed to unmount at path %s: %v", req.GetStagingTargetPath, err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnstageVolume failed to unmount at path %s: %v", stagingTargetPath, err))
 	}
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
