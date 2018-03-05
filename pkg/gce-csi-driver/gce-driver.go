@@ -41,7 +41,7 @@ func GetGCEDriver() *GCEDriver {
 	return &GCEDriver{}
 }
 
-func (gceDriver *GCEDriver) SetupGCEDriver(name string, nodeID, project string) error {
+func (gceDriver *GCEDriver) SetupGCEDriver(cloudProvider gce.GCECompute, name string, nodeID, project string) error {
 	if name == "" {
 		return fmt.Errorf("Driver name missing")
 	}
@@ -75,11 +75,6 @@ func (gceDriver *GCEDriver) SetupGCEDriver(name string, nodeID, project string) 
 	// Set up RPC Servers
 	gceDriver.ids = NewIdentityServer(gceDriver)
 	gceDriver.ns = NewNodeServer(gceDriver)
-
-	cloudProvider, err := gce.CreateCloudProvider()
-	if err != nil {
-		return err
-	}
 	gceDriver.cs = NewControllerServer(gceDriver, cloudProvider)
 
 	return nil
@@ -141,7 +136,7 @@ func NewNodeServer(gceDriver *GCEDriver) *GCENodeServer {
 	}
 }
 
-func NewControllerServer(gceDriver *GCEDriver, cloudProvider *gce.CloudProvider) *GCEControllerServer {
+func NewControllerServer(gceDriver *GCEDriver, cloudProvider gce.GCECompute) *GCEControllerServer {
 	return &GCEControllerServer{
 		Driver:        gceDriver,
 		CloudProvider: cloudProvider,

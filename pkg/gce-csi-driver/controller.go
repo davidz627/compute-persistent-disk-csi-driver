@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	gceprovider "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
+	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 	utils "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
@@ -34,7 +34,7 @@ import (
 
 type GCEControllerServer struct {
 	Driver        *GCEDriver
-	CloudProvider *gceprovider.CloudProvider
+	CloudProvider gce.GCECompute
 }
 
 const (
@@ -51,12 +51,18 @@ const (
 
 func getRequestCapacity(capRange *csi.CapacityRange) (capBytes int64) {
 	// TODO: Take another look at these casts/caps. Make sure this func is correct
+	if capRange == nil {
+		capBytes = DefaultVolumeSize
+		return
+	}
+
 	if tcap := capRange.GetRequiredBytes(); tcap > 0 {
 		capBytes = tcap
 	} else if tcap = capRange.GetLimitBytes(); tcap > 0 {
 		capBytes = tcap
-	} else {
-		// Default size
+	}
+	// Too small, default
+	if capBytes < DefaultVolumeSize {
 		capBytes = DefaultVolumeSize
 	}
 	return
@@ -77,10 +83,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume Volume capabilities must be provided")
 	}
 
-	capBytes := DefaultVolumeSize
-	if capacityRange != nil {
-		capBytes = getRequestCapacity(capacityRange)
-	}
+	capBytes := getRequestCapacity(capacityRange)
 
 	// TODO: Validate volume capabilities
 
@@ -91,6 +94,10 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	configuredZone := ""
 	zonePresent := false
 	for k, v := range req.GetParameters() {
+		if k == "csiProvisionerSecretName" || k == "csiProvisionerSecretNamespace" {
+			// These are hardcoded secrets keys required to function but not needed by GCE PD
+			continue
+		}
 		switch strings.ToLower(k) {
 		case "type":
 			glog.Infof("Setting type: %v", v)
@@ -111,10 +118,15 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return nil, status.Error(codes.InvalidArgument, "DiskType must be specified")
 	}
 
+	project, err := gceCS.CloudProvider.GetProject()
+	if err != nil {
+		return nil, err
+	}
+
 	createResp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes: capBytes,
-			Id:            utils.CombineVolumeId(gceCS.CloudProvider.Project, configuredZone, name),
+			Id:            utils.CombineVolumeId(project, configuredZone, name),
 			// TODO: Are there any attributes we need to add. These get sent to ControllerPublishVolume
 			Attributes: nil,
 		},
@@ -147,7 +159,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	insertOp, err := gceCS.CloudProvider.InsertDisk(ctx, configuredZone, diskToCreate)
 
 	if err != nil {
-		if gceprovider.IsGCEError(err, "alreadyExists") {
+		if gce.IsGCEError(err, "alreadyExists") {
 			_, err := gceCS.CloudProvider.GetAndValidateExistingDisk(ctx, configuredZone,
 				name, diskType,
 				capacityRange.GetRequiredBytes(),
@@ -164,7 +176,7 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	err = gceCS.CloudProvider.WaitForOp(ctx, insertOp, configuredZone)
 
 	if err != nil {
-		if gceprovider.IsGCEError(err, "alreadyExists") {
+		if gce.IsGCEError(err, "alreadyExists") {
 			_, err := gceCS.CloudProvider.GetAndValidateExistingDisk(ctx, configuredZone,
 				name, diskType,
 				capacityRange.GetRequiredBytes(),
@@ -200,10 +212,10 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 
 	deleteOp, err := gceCS.CloudProvider.DeleteDisk(ctx, zone, name)
 	if err != nil {
-		if gceprovider.IsGCEError(err, "resourceInUseByAnotherResource") {
+		if gce.IsGCEError(err, "resourceInUseByAnotherResource") {
 			return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("Volume in use: %v", err))
 		}
-		if gceprovider.IsGCEError(err, "notFound") {
+		if gce.IsGCEError(err, "notFound") {
 			// Already deleted
 			return &csi.DeleteVolumeResponse{}, nil
 		}

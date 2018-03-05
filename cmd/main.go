@@ -20,6 +20,7 @@ import (
 
 	"github.com/golang/glog"
 
+	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 	driver "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-csi-driver"
 )
 
@@ -46,7 +47,12 @@ func handle() {
 	gceDriver := driver.GetGCEDriver()
 
 	//Initialize GCE Driver (Move setup to main?)
-	err := gceDriver.SetupGCEDriver(*driverName, *nodeID, *project)
+	cloudProvider, err := gce.CreateCloudProvider()
+	if err != nil {
+		glog.Fatalf("Failed to get cloud provider: %v", err)
+	}
+
+	err = gceDriver.SetupGCEDriver(cloudProvider, *driverName, *nodeID, *project)
 	if err != nil {
 		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
 	}

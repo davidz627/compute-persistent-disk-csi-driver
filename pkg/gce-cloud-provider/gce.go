@@ -24,13 +24,10 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/golang/glog"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -43,9 +40,9 @@ const (
 )
 
 type CloudProvider struct {
-	Service *compute.Service
-	Project string
-	Zone    string
+	service *compute.Service
+	project string
+	zone    string
 }
 
 func CreateCloudProvider() (*CloudProvider, error) {
@@ -64,9 +61,9 @@ func CreateCloudProvider() (*CloudProvider, error) {
 	*/
 
 	return &CloudProvider{
-		Service: svc,
-		Project: "dyzz-test",
-		Zone:    "us-central1-b",
+		service: svc,
+		project: "dyzz-test",
+		zone:    "us-central1-b",
 	}, nil
 
 }
@@ -150,56 +147,4 @@ func IsGCEError(err error, reason string) bool {
 		}
 	}
 	return false
-}
-
-func (cloud *CloudProvider) WaitForOp(ctx context.Context, op *compute.Operation, zone string) error {
-	svc := cloud.Service
-	project := cloud.Project
-	// TODO: Double check that these timeouts are reasonable
-	return wait.Poll(3*time.Second, 5*time.Minute, func() (bool, error) {
-		pollOp, err := svc.ZoneOperations.Get(project, zone, op.Name).Context(ctx).Do()
-		if err != nil {
-			glog.Errorf("WaitForOp(op: %#v, zone: %#v) failed to poll the operation", op, zone)
-			return false, err
-		}
-		done := opIsDone(pollOp)
-		return done, err
-	})
-}
-
-func opIsDone(op *compute.Operation) bool {
-	return op != nil && op.Status == "DONE"
-}
-
-func (cloud *CloudProvider) GetInstanceOrError(ctx context.Context, instanceZone, instanceName string) (*compute.Instance, error) {
-	svc := cloud.Service
-	project := cloud.Project
-	glog.Infof("Getting instance %v from zone %v", instanceName, instanceZone)
-	instance, err := svc.Instances.Get(project, instanceZone, instanceName).Do()
-	if err != nil {
-		if IsGCEError(err, "notFound") {
-			return nil, status.Error(codes.NotFound, fmt.Sprintf("instance %v does not exist", instanceName))
-		}
-
-		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown instance GET error: %v", err))
-	}
-	glog.Infof("Got instance %v from zone %v", instanceName, instanceZone)
-	return instance, nil
-}
-
-func (cloud *CloudProvider) GetDiskSourceURI(disk *compute.Disk, zone string) string {
-	projectsApiEndpoint := gceComputeAPIEndpoint + "projects/"
-	if cloud.Service != nil {
-		projectsApiEndpoint = cloud.Service.BasePath
-	}
-
-	return projectsApiEndpoint + fmt.Sprintf(
-		diskSourceURITemplateSingleZone,
-		cloud.Project,
-		zone,
-		disk.Name)
-}
-
-func (cloud *CloudProvider) GetDiskTypeURI(zone, diskType string) string {
-	return fmt.Sprintf(diskTypeURITemplateSingleZone, cloud.Project, zone, diskType)
 }
