@@ -51,19 +51,16 @@ func CreateCloudProvider() (*CloudProvider, error) {
 		return nil, err
 	}
 	// TODO: Use metadata server or flags to retrieve project and zone. Fallback on flag if necessary
-	/*
-		project, zone, err := gce.GetProjectAndZone()
-		if err != nil{
-			return fmt.Errorf("Failed creating GCE Cloud Service: %v", err)
-		}
-		gceDriver.project = project
-		gceDriver.zone = zone
-	*/
+
+	project, zone, err := getProjectAndZoneFromMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("Failed getting Project and Zone from Metadata server: %v", err)
+	}
 
 	return &CloudProvider{
 		service: svc,
-		project: "dyzz-test",
-		zone:    "us-central1-b",
+		project: project,
+		zone:    zone,
 	}, nil
 
 }
@@ -94,9 +91,9 @@ func newDefaultOauthClient() (*http.Client, error) {
 		compute.CloudPlatformScope,
 		compute.ComputeScope)
 	if gac, ok := os.LookupEnv("GOOGLE_APPLICATION_CREDENTIALS"); ok {
-		glog.Infof("GOOGLE_APPLICATION_CREDENTISLS env var set %v", gac)
+		glog.Infof("GOOGLE_APPLICATION_CREDENTIALS env var set %v", gac)
 	} else {
-		glog.Warningf("GOOGLE_APPLICATION_CREDENTISLS env var not set")
+		glog.Warningf("GOOGLE_APPLICATION_CREDENTIALS env var not set")
 	}
 	glog.Infof("Using DefaultTokenSource %#v", tokenSource)
 	if err != nil {
@@ -116,7 +113,7 @@ func newDefaultOauthClient() (*http.Client, error) {
 	return oauth2.NewClient(oauth2.NoContext, tokenSource), nil
 }
 
-func GetProjectAndZone() (string, string, error) {
+func getProjectAndZoneFromMetadata() (string, string, error) {
 	result, err := metadata.Get("instance/zone")
 	if err != nil {
 		return "", "", err

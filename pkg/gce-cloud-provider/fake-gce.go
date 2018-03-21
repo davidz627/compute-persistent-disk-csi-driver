@@ -72,7 +72,6 @@ func (cloud *FakeCloudProvider) DeleteDisk(ctx context.Context, zone, name strin
 }
 
 func (cloud *FakeCloudProvider) AttachDisk(ctx context.Context, zone, instanceName string, attachedDisk *compute.AttachedDisk) (*compute.Operation, error) {
-	// TODO(dyzz)implement
 	instance, ok := cloud.instances[instanceName]
 	if !ok {
 		return nil, fmt.Errorf("Failed to get instance %v", instanceName)
@@ -82,7 +81,6 @@ func (cloud *FakeCloudProvider) AttachDisk(ctx context.Context, zone, instanceNa
 }
 
 func (cloud *FakeCloudProvider) DetachDisk(ctx context.Context, volumeZone, instanceName, volumeName string) (*compute.Operation, error) {
-	// TODO(dyzz)implement
 	instance, ok := cloud.instances[instanceName]
 	if !ok {
 		return nil, fmt.Errorf("Failed to get instance %v", instanceName)

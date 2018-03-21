@@ -41,15 +41,12 @@ func GetGCEDriver() *GCEDriver {
 	return &GCEDriver{}
 }
 
-func (gceDriver *GCEDriver) SetupGCEDriver(cloudProvider gce.GCECompute, name string, nodeID, project string) error {
+func (gceDriver *GCEDriver) SetupGCEDriver(cloudProvider gce.GCECompute, name string, nodeID string) error {
 	if name == "" {
 		return fmt.Errorf("Driver name missing")
 	}
 	if nodeID == "" {
 		return fmt.Errorf("NodeID missing")
-	}
-	if project == "" {
-		return fmt.Errorf("Project missing")
 	}
 
 	gceDriver.name = name
@@ -66,7 +63,6 @@ func (gceDriver *GCEDriver) SetupGCEDriver(cloudProvider gce.GCECompute, name st
 		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 	}
 	gceDriver.AddControllerServiceCapabilities(csc)
-	// TODO(dyzz) remove STAGE_UNSTAGE_VOLUME capability until supported
 	ns := []csi.NodeServiceCapability_RPC_Type{
 		csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 	}
@@ -121,7 +117,7 @@ func (gceDriver *GCEDriver) ValidateControllerServiceRequest(c csi.ControllerSer
 		}
 	}
 
-	return status.Error(codes.InvalidArgument, "TODO(dyzz): ERROR")
+	return status.Error(codes.InvalidArgument, "Invalid controller service request")
 }
 
 func NewIdentityServer(gceDriver *GCEDriver) *GCEIdentityServer {

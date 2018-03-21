@@ -6,8 +6,6 @@ provisioner: csi-gce-pd
 parameters:
   type: pd-standard
   zone: us-central1-c
-  csiProvisionerSecretName: csi-secret
-  csiProvisionerSecretNamespace: default 
 volumeBindingMode: Immediate
 
 ---

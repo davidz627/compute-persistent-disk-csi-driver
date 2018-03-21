@@ -33,7 +33,6 @@ var (
 	// TODO(dyzz) change com.google.csi.gcepd
 	driverName = flag.String("drivername", "csi-gce", "name of the driver")
 	nodeID     = flag.String("nodeid", "", "node id")
-	project    = flag.String("project", "", "project to provision storage in")
 )
 
 func main() {
@@ -52,7 +51,7 @@ func handle() {
 		glog.Fatalf("Failed to get cloud provider: %v", err)
 	}
 
-	err = gceDriver.SetupGCEDriver(cloudProvider, *driverName, *nodeID, *project)
+	err = gceDriver.SetupGCEDriver(cloudProvider, *driverName, *nodeID)
 	if err != nil {
 		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
 	}
