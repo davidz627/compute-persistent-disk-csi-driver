@@ -90,9 +90,11 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	// TODO: Support replica zones and fs type. Can vendor in api-machinery stuff for sets etc.
 	// Apply Parameters (case-insensitive). We leave validation of
 	// the values to the cloud provider.
-	diskType := ""
-	configuredZone := ""
-	zonePresent := false
+	diskType := "pd-standard"
+	configuredZone, err := gceCS.CloudProvider.GetZone()
+	if err != nil {
+		return nil, status.Error(codes.Internal, "CreateVolume failed to get zone")
+	}
 	for k, v := range req.GetParameters() {
 		if k == "csiProvisionerSecretName" || k == "csiProvisionerSecretNamespace" {
 			// These are hardcoded secrets keys required to function but not needed by GCE PD
@@ -103,19 +105,10 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 			glog.Infof("Setting type: %v", v)
 			diskType = v
 		case "zone":
-			zonePresent = true
 			configuredZone = v
 		default:
 			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid option %q", k))
 		}
-	}
-
-	if !zonePresent {
-		return nil, status.Error(codes.InvalidArgument, "Zone must be specified")
-	}
-
-	if diskType == "" {
-		return nil, status.Error(codes.InvalidArgument, "DiskType must be specified")
 	}
 
 	project, err := gceCS.CloudProvider.GetProject()
@@ -207,7 +200,9 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 
 	_, zone, name, err := utils.SplitProjectZoneNameId(volumeID)
 	if err != nil {
-		return nil, err
+		// Cannot find volume associated with this ID because can't even get the name or zone
+		// This is a success according to the spec
+		return &csi.DeleteVolumeResponse{}, nil
 	}
 
 	deleteOp, err := gceCS.CloudProvider.DeleteDisk(ctx, zone, name)
@@ -387,6 +382,14 @@ func diskIsAttachedAndCompatible(volume *compute.Disk, instance *compute.Instanc
 func (gceCS *GCEControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	// TODO: Factor out the volume capability functionality and use as validation in all other functions as well
 	glog.V(5).Infof("Using default ValidateVolumeCapabilities")
+	// Validate Arguments
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "ControllerUnpublishVolume Volume ID must be provided")
+	}
+	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "ControllerUnpublishVolume Volume Capabilities must be provided")
+	}
 
 	for _, c := range req.GetVolumeCapabilities() {
 		found := false

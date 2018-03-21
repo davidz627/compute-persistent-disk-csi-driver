@@ -29,10 +29,10 @@ type FakeCloudProvider struct {
 	instances map[string]*compute.Instance
 }
 
-func FakeCreateCloudProvider() (*FakeCloudProvider, error) {
+func FakeCreateCloudProvider(project, zone string) (*FakeCloudProvider, error) {
 	return &FakeCloudProvider{
-		project:   "fake-project",
-		zone:      "fake-zone",
+		project:   project,
+		zone:      zone,
 		disks:     map[string]*compute.Disk{},
 		instances: map[string]*compute.Instance{},
 	}, nil
@@ -73,11 +73,29 @@ func (cloud *FakeCloudProvider) DeleteDisk(ctx context.Context, zone, name strin
 
 func (cloud *FakeCloudProvider) AttachDisk(ctx context.Context, zone, instanceName string, attachedDisk *compute.AttachedDisk) (*compute.Operation, error) {
 	// TODO(dyzz)implement
+	instance, ok := cloud.instances[instanceName]
+	if !ok {
+		return nil, fmt.Errorf("Failed to get instance %v", instanceName)
+	}
+	instance.Disks = append(instance.Disks, attachedDisk)
 	return nil, nil
 }
 
 func (cloud *FakeCloudProvider) DetachDisk(ctx context.Context, volumeZone, instanceName, volumeName string) (*compute.Operation, error) {
 	// TODO(dyzz)implement
+	instance, ok := cloud.instances[instanceName]
+	if !ok {
+		return nil, fmt.Errorf("Failed to get instance %v", instanceName)
+	}
+	found := -1
+	for i, disk := range instance.Disks {
+		if disk.DeviceName == volumeName {
+			found = i
+			break
+		}
+	}
+	instance.Disks[found] = instance.Disks[len(instance.Disks)-1]
+	instance.Disks = instance.Disks[:len(instance.Disks)-1]
 	return nil, nil
 }
 
@@ -108,6 +126,11 @@ func (cloud *FakeCloudProvider) GetDiskTypeURI(zone, diskType string) string {
 }
 
 // Instance Methods
+func (cloud *FakeCloudProvider) InsertInstance(instance *compute.Instance, instanceName string) {
+	cloud.instances[instanceName] = instance
+	return
+}
+
 func (cloud *FakeCloudProvider) GetInstanceOrError(ctx context.Context, instanceZone, instanceName string) (*compute.Instance, error) {
 	instance, ok := cloud.instances[instanceName]
 	if !ok {

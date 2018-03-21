@@ -31,7 +31,7 @@
 
 [[constraint]]
   name = "github.com/container-storage-interface/spec"
-  version = "0.2.0-rc1"
+  version = "0.2.0"
 
 [[constraint]]
   branch = "master"
@@ -70,5 +70,7 @@
   unused-packages = true
 
 [[constraint]]
-  branch = "master"
+  branch = "fix/stageUnstage"
+#  branch = "master"
   name = "github.com/kubernetes-csi/csi-test"
+  source= "github.com/davidz627/csi-test"
