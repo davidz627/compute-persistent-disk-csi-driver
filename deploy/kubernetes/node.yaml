@@ -72,7 +72,7 @@ spec:
             type: Directory
         - name: plugin-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/csi-gce/
+            path: /var/lib/kubelet/plugins/com.google.csi.gcepd/
             type: DirectoryOrCreate
         - name: device-dir
           hostPath:

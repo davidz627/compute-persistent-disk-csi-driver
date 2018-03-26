@@ -205,7 +205,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create fake cloud provider: %v", err)
 		}
-		err = gceDriver.SetupGCEDriver(fakeCloudProvider, driver, node, project)
+		err = gceDriver.SetupGCEDriver(fakeCloudProvider, driver, node)
 		if err != nil {
 			t.Fatalf("Failed to setup GCE Driver: %v", err)
 		}
