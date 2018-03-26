@@ -294,7 +294,6 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("unknown Attach error: %v", err))
 	}
-	glog.Infof("RESPONSE: %#v", attachOp)
 
 	glog.Infof("Waiting for attach of disk %v to instance %v to complete...", disk.Name, nodeID)
 	err = gceCS.CloudProvider.WaitForOp(ctx, attachOp, volumeZone)
@@ -401,8 +400,8 @@ func (gceCS *GCEControllerServer) ValidateVolumeCapabilities(ctx context.Context
 		if !found {
 			return &csi.ValidateVolumeCapabilitiesResponse{
 				Supported: false,
-				Message:   "Driver doesnot support mode:" + c.GetAccessMode().Mode.String(),
-			}, status.Error(codes.InvalidArgument, "Driver doesnot support mode:"+c.GetAccessMode().Mode.String())
+				Message:   "Driver does not support mode:" + c.GetAccessMode().Mode.String(),
+			}, status.Error(codes.InvalidArgument, "Driver does not support mode:"+c.GetAccessMode().Mode.String())
 		}
 		// TODO: Ignoring mount & block types for now.
 	}

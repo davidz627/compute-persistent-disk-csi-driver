@@ -31,7 +31,7 @@ func init() {
 var (
 	endpoint = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
 	// TODO(dyzz) change com.google.csi.gcepd
-	driverName = flag.String("drivername", "csi-gce", "name of the driver")
+	driverName = flag.String("drivername", "com.google.csi.gcepd", "name of the driver")
 	nodeID     = flag.String("nodeid", "", "node id")
 )
 
