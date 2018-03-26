@@ -17,12 +17,12 @@ package test
 import (
 	"testing"
 
+	"github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/mount-manager"
+
 	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 	driver "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-csi-driver"
 	sanity "github.com/kubernetes-csi/csi-test/pkg/sanity"
 	compute "google.golang.org/api/compute/v1"
-
-	"github.com/golang/glog"
 )
 
 func TestSanity(t *testing.T) {
@@ -41,13 +41,19 @@ func TestSanity(t *testing.T) {
 
 	cloudProvider, err := gce.FakeCreateCloudProvider(project, zone)
 	if err != nil {
-		glog.Fatalf("Failed to get cloud provider: %v", err)
+		t.Fatalf("Failed to get cloud provider: %v", err)
+	}
+
+	// TODO(dyzz): Change this to a fake mounter
+	mounter, err := mountmanager.CreateFakeMounter()
+	if err != nil {
+		t.Fatalf("Failed to get mounter %v", err)
 	}
 
 	//Initialize GCE Driver
-	err = gceDriver.SetupGCEDriver(cloudProvider, driverName, nodeID)
+	err = gceDriver.SetupGCEDriver(cloudProvider, mounter, driverName, nodeID)
 	if err != nil {
-		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
+		t.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
 	}
 
 	instance := &compute.Instance{

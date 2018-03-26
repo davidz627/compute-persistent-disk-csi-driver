@@ -17,42 +17,20 @@ package gceGCEDriver
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
+	mountmanager "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/mount-manager"
 	utils "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 type GCENodeServer struct {
-	Driver *GCEDriver
+	Driver  *GCEDriver
+	Mounter mountmanager.Mounter
 }
-
-const (
-	diskByIdPath         = "/host/dev/disk/by-id/"
-	diskGooglePrefix     = "google-"
-	diskScsiGooglePrefix = "scsi-0Google_PersistentDisk_"
-	diskPartitionSuffix  = "-part"
-	diskSDPath           = "/host/dev/sd"
-	diskSDPattern        = "/host/dev/sd*"
-	// How many times to retry for a consistent read of /proc/mounts.
-	maxListTries = 3
-	// Number of fields per line in /proc/mounts as per the fstab man page.
-	expectedNumFieldsPerLine = 6
-	// Location of the mount file to use
-	procMountsPath = "/proc/mounts"
-	// Location of the mountinfo file
-	procMountInfoPath = "/proc/self/mountinfo"
-	// 'fsck' found errors and corrected them
-	fsckErrorsCorrected = 1
-	// 'fsck' found errors but exited without correcting them
-	fsckErrorsUncorrected = 4
-	defaultMountCommand   = "mount"
-)
 
 func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	glog.Infof("NodePublishVolume called with req: %#v", req)
@@ -76,7 +54,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
 	}
 
-	notMnt, err := isLikelyNotMountPoint(targetPath)
+	notMnt, err := ns.Mounter.IsLikelyNotMountPoint(targetPath)
 	if err != nil && !os.IsNotExist(err) {
 		glog.Errorf("cannot validate mount point: %s %v", targetPath, err)
 		return nil, err
@@ -86,7 +64,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 		return nil, nil
 	}
 
-	if err := os.MkdirAll(targetPath, 0750); err != nil {
+	if err := ns.Mounter.MkdirAll(targetPath, 0750); err != nil {
 		glog.Errorf("mkdir failed on disk %s (%v)", targetPath, err)
 		return nil, err
 	}
@@ -97,19 +75,19 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 		options = append(options, "ro")
 	}
 
-	err = doMount(defaultMountCommand, stagingTargetPath, targetPath, "ext4", options)
+	err = ns.Mounter.DoMount(stagingTargetPath, targetPath, "ext4", options)
 	if err != nil {
-		notMnt, mntErr := isLikelyNotMountPoint(targetPath)
+		notMnt, mntErr := ns.Mounter.IsLikelyNotMountPoint(targetPath)
 		if mntErr != nil {
 			glog.Errorf("IsLikelyNotMountPoint check failed: %v", mntErr)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("TODO: %v", err))
 		}
 		if !notMnt {
-			if _, mntErr = unmountVolume(targetPath); mntErr != nil {
+			if _, mntErr = ns.Mounter.UnmountVolume(targetPath); mntErr != nil {
 				glog.Errorf("Failed to unmount: %v", mntErr)
 				return nil, status.Error(codes.Internal, fmt.Sprintf("TODO: %v", err))
 			}
-			notMnt, mntErr := isLikelyNotMountPoint(targetPath)
+			notMnt, mntErr := ns.Mounter.IsLikelyNotMountPoint(targetPath)
 			if mntErr != nil {
 				glog.Errorf("IsLikelyNotMountPoint check failed: %v", mntErr)
 				return nil, status.Error(codes.Internal, fmt.Sprintf("TODO: %v", err))
@@ -120,7 +98,7 @@ func (ns *GCENodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePub
 				return nil, status.Error(codes.Internal, fmt.Sprintf("TODO: %v", err))
 			}
 		}
-		os.Remove(targetPath)
+		ns.Mounter.Remove(targetPath)
 		glog.Errorf("Mount of disk %s failed: %v", targetPath, err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("TODO: %v", err))
 	}
@@ -143,7 +121,7 @@ func (ns *GCENodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeU
 
 	// TODO: Check volume still exists
 
-	output, err := unmountVolume(targetPath)
+	output, err := ns.Mounter.UnmountVolume(targetPath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Unmount failed: %v\nUnmounting arguments: %s\nOutput: %s\n", err, targetPath, output))
 	}
@@ -176,18 +154,11 @@ func (ns *GCENodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStage
 	// TODO: Check volume still exists?
 
 	// Part 1: Get device path of attached device
-	sdBefore, err := filepath.Glob(diskSDPattern)
-	if err != nil {
-		// Seeing this error means that the diskSDPattern is malformed.
-		glog.Errorf("Error filepath.Glob(\"%s\"): %v\r\n", diskSDPattern, err)
-	}
-	sdBeforeSet := sets.NewString(sdBefore...)
-
 	// TODO: Get real partitions
 	partition := ""
 
-	devicePaths := getDiskByIdPaths(volumeName, partition)
-	devicePath, err := verifyDevicePath(devicePaths, sdBeforeSet)
+	devicePaths := ns.Mounter.GetDiskByIdPaths(volumeName, partition)
+	devicePath, err := ns.Mounter.VerifyDevicePath(devicePaths)
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Error verifying GCE PD (%q) is attached: %v", volumeName, err))
@@ -199,10 +170,10 @@ func (ns *GCENodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStage
 	glog.Infof("Successfully found attached GCE PD %q at device path %s.", volumeName, devicePath)
 
 	// Part 2: Check if mount already exists at targetpath
-	notMnt, err := isLikelyNotMountPoint(stagingTargetPath)
+	notMnt, err := ns.Mounter.IsLikelyNotMountPoint(stagingTargetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(stagingTargetPath, 0750); err != nil {
+			if err := ns.Mounter.MkdirAll(stagingTargetPath, 0750); err != nil {
 				return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to create directory (%q): %v", stagingTargetPath, err))
 			}
 			notMnt = true
@@ -236,7 +207,7 @@ func (ns *GCENodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStage
 		return nil, status.Error(codes.Unimplemented, fmt.Sprintf("Block volume support is not yet implemented"))
 	}
 
-	err = formatAndMount(devicePath, stagingTargetPath, fstype, options)
+	err = ns.Mounter.FormatAndMount(devicePath, stagingTargetPath, fstype, options)
 	if err != nil {
 		return nil, status.Error(codes.Internal,
 			fmt.Sprintf("Failed to format and mount device from (%q) to (%q) with fstype (%q) and options (%q): %v",
@@ -258,7 +229,7 @@ func (ns *GCENodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUns
 		return nil, status.Error(codes.InvalidArgument, "NodeUnstageVolume Staging Target Path must be provided")
 	}
 
-	_, err := unmountVolume(stagingTargetPath)
+	_, err := ns.Mounter.UnmountVolume(stagingTargetPath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeUnstageVolume failed to unmount at path %s: %v", stagingTargetPath, err))
 	}

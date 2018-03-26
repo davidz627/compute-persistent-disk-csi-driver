@@ -22,6 +22,7 @@ import (
 
 	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
 	driver "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-csi-driver"
+	mountmanager "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/mount-manager"
 )
 
 func init() {
@@ -50,7 +51,12 @@ func handle() {
 		glog.Fatalf("Failed to get cloud provider: %v", err)
 	}
 
-	err = gceDriver.SetupGCEDriver(cloudProvider, *driverName, *nodeID)
+	mounter, err := mountmanager.CreateMounter()
+	if err != nil {
+		glog.Fatalf("Failed to get mounter: %v", err)
+	}
+
+	err = gceDriver.SetupGCEDriver(cloudProvider, mounter, *driverName, *nodeID)
 	if err != nil {
 		glog.Fatalf("Failed to initialize GCE CSI Driver: %v", err)
 	}

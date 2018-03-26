@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	gce "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/gce-cloud-provider"
+	mountmanager "github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/mount-manager"
 	csi "github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
@@ -41,7 +42,7 @@ func GetGCEDriver() *GCEDriver {
 	return &GCEDriver{}
 }
 
-func (gceDriver *GCEDriver) SetupGCEDriver(cloudProvider gce.GCECompute, name string, nodeID string) error {
+func (gceDriver *GCEDriver) SetupGCEDriver(cloudProvider gce.GCECompute, mounter mountmanager.Mounter, name string, nodeID string) error {
 	if name == "" {
 		return fmt.Errorf("Driver name missing")
 	}
@@ -70,7 +71,7 @@ func (gceDriver *GCEDriver) SetupGCEDriver(cloudProvider gce.GCECompute, name st
 
 	// Set up RPC Servers
 	gceDriver.ids = NewIdentityServer(gceDriver)
-	gceDriver.ns = NewNodeServer(gceDriver)
+	gceDriver.ns = NewNodeServer(gceDriver, mounter)
 	gceDriver.cs = NewControllerServer(gceDriver, cloudProvider)
 
 	return nil
@@ -126,9 +127,10 @@ func NewIdentityServer(gceDriver *GCEDriver) *GCEIdentityServer {
 	}
 }
 
-func NewNodeServer(gceDriver *GCEDriver) *GCENodeServer {
+func NewNodeServer(gceDriver *GCEDriver, mounter mountmanager.Mounter) *GCENodeServer {
 	return &GCENodeServer{
-		Driver: gceDriver,
+		Driver:  gceDriver,
+		Mounter: mounter,
 	}
 }
 
