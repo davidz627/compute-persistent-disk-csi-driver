@@ -216,11 +216,11 @@ var _ = Describe("CreateVolume [Controller Server]", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("should return appropriate values SingleNodeWriter WithCapacity 10Gi Type:Mount", func() {
+	It("should return appropriate values SingleNodeWriter WithCapacity 1Gi Type:Mount", func() {
 
 		By("creating a volume")
 		name := "sanity"
-		size := int64(10 * 1024 * 1024 * 1024)
+		size := int64(1 * 1024 * 1024 * 1024)
 		vol, err := c.CreateVolume(
 			context.Background(),
 			&csi.CreateVolumeRequest{
@@ -380,34 +380,6 @@ var _ = Describe("CreateVolume [Controller Server]", func() {
 				VolumeId: vol1.GetVolume().GetId(),
 			})
 		Expect(err).NotTo(HaveOccurred())
-	})
-	It("should fail when requesting to create a volume exceeding Maximum Capacity", func() {
-
-		By("creating a volume")
-		name := "sanity"
-		size := int64(10 * 1024 * 1024 * 1024 * 1024)
-		_, err := c.CreateVolume(
-			context.Background(),
-			&csi.CreateVolumeRequest{
-				Name: name,
-				VolumeCapabilities: []*csi.VolumeCapability{
-					{
-						AccessType: &csi.VolumeCapability_Mount{
-							Mount: &csi.VolumeCapability_MountVolume{},
-						},
-						AccessMode: &csi.VolumeCapability_AccessMode{
-							Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
-						},
-					},
-				},
-				CapacityRange: &csi.CapacityRange{
-					RequiredBytes: size,
-				},
-			})
-		Expect(err).To(HaveOccurred())
-		serverError, ok := status.FromError(err)
-		Expect(ok).To(BeTrue())
-		Expect(serverError.Code()).To(Equal(codes.OutOfRange))
 	})
 })
 

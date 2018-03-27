@@ -19,7 +19,6 @@ package sanity
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 
@@ -32,23 +31,24 @@ import (
 )
 
 var (
-	driverAddress        string
-	csiMountDir          string
-	csiTargetPath        string
-	csiStagingTargetPath string
-	conn                 *grpc.ClientConn
-	lock                 sync.Mutex
+	config *Config
+	conn   *grpc.ClientConn
+	lock   sync.Mutex
 )
 
+// Config provides the configuration for the sanity tests
+type Config struct {
+	TargetPath  string
+	StagingPath string
+	Address     string
+}
+
 // Test will test the CSI driver at the specified address
-func Test(t *testing.T, address, mountDir string) {
+func Test(t *testing.T, reqConfig *Config) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	driverAddress = address
-	csiMountDir = mountDir
-	csiTargetPath = filepath.Join(mountDir, "mount")
-	csiStagingTargetPath = filepath.Join(mountDir, "stage")
+	config = reqConfig
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "CSI Driver Test Suite")
 }
@@ -57,32 +57,24 @@ var _ = BeforeSuite(func() {
 	var err error
 
 	By("connecting to CSI driver")
-	conn, err = utils.Connect(driverAddress)
-	Expect(err).NotTo(HaveOccurred())
-
-	By("creating mount directory")
-	err = createMountTargetLocation(csiMountDir)
+	conn, err = utils.Connect(config.Address)
 	Expect(err).NotTo(HaveOccurred())
 
 	By("creating mount and staging directories")
-	err = createMountTargetLocation(csiTargetPath)
+	err = createMountTargetLocation(config.TargetPath)
 	Expect(err).NotTo(HaveOccurred())
-	err = createMountTargetLocation(csiStagingTargetPath)
+	err = createMountTargetLocation(config.StagingPath)
 	Expect(err).NotTo(HaveOccurred())
-
 })
 
 var _ = AfterSuite(func() {
 	conn.Close()
-	os.Remove(csiTargetPath)
-	os.Remove(csiStagingTargetPath)
-	os.Remove(csiMountDir)
 })
 
 func createMountTargetLocation(targetPath string) error {
 	fileInfo, err := os.Stat(targetPath)
 	if err != nil && os.IsNotExist(err) {
-		return os.Mkdir(targetPath, 0755)
+		return os.MkdirAll(targetPath, 0755)
 	} else if err != nil {
 		return err
 	}

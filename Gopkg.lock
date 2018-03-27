@@ -38,13 +38,13 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "fix/stageUnstage"
+  branch = "fix/MakeDirectory"
   name = "github.com/kubernetes-csi/csi-test"
   packages = [
     "pkg/sanity",
     "utils"
   ]
-  revision = "c611266fae445bd0d41cf158ed5173317bd8ceff"
+  revision = "fe3d48bd5ba84d2db1a6d9fdcd22dbe372a58acb"
   source = "github.com/davidz627/csi-test"
 
 [[projects]]
@@ -261,6 +261,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "282a252a7334c0a7abaa8ec31500ccd0b01c15c15d3caec17fa44307b4495ace"
+  inputs-digest = "c06c289274056fd2823c8ee23ee9db5c6584533f1d0603b0e663ece4eb690f26"
   solver-name = "gps-cdcl"
   solver-version = 1

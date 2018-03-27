@@ -34,8 +34,8 @@ func TestSanity(t *testing.T) {
 	// TODO(dyzz): Only one of these can be correct, the way endpoint is defined in GCE driver is INCORRECT
 	endpoint := "unix://tmp/csi.sock"
 	csiSanityEndpoint := "unix:/tmp/csi.sock"
-	mountDir := "/tmp/csi"
-
+	mountPath := "/tmp/csi/mount"
+	stagePath := "/tmp/csi/stage"
 	// Set up driver and env
 	gceDriver := driver.GetGCEDriver()
 
@@ -67,6 +67,11 @@ func TestSanity(t *testing.T) {
 	}()
 
 	// Run test
-	sanity.Test(t, csiSanityEndpoint, mountDir)
+	config := &sanity.Config{
+		TargetPath:  mountPath,
+		StagingPath: stagePath,
+		Address:     csiSanityEndpoint,
+	}
+	sanity.Test(t, config)
 
 }

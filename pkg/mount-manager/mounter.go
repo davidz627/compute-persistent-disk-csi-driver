@@ -51,6 +51,7 @@ const (
 	defaultMountCommand   = "mount"
 )
 
+// TODO(dyzz): Should be able to clean up this interface some more. Not everything here needs to be here
 type Mounter interface {
 	DoMount(source string, target string, fstype string, options []string) error
 	FormatAndMount(source string, target string, fstype string, options []string) error
