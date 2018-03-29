@@ -63,8 +63,10 @@ var _ = BeforeSuite(func() {
 	By("creating mount and staging directories")
 	err = createMountTargetLocation(config.TargetPath)
 	Expect(err).NotTo(HaveOccurred())
-	err = createMountTargetLocation(config.StagingPath)
-	Expect(err).NotTo(HaveOccurred())
+	if len(config.StagingPath) > 0 {
+		err = createMountTargetLocation(config.StagingPath)
+		Expect(err).NotTo(HaveOccurred())
+	}
 })
 
 var _ = AfterSuite(func() {
