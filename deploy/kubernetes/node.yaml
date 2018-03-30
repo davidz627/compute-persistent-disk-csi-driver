@@ -7,13 +7,12 @@ spec:
   selector:
     matchLabels:
       app: csi-gce-driver
-  serviceName: csi-gce
   template:
     metadata:
       labels:
         app: csi-gce-driver
     spec:
-      serviceAccount: csi-gce-pd
+      serviceAccount: csi-node-sa
       containers:
         - name: csi-driver-registrar
           imagePullPolicy: Always
