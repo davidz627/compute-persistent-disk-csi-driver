@@ -27,3 +27,6 @@ build-container: gce-driver
 
 push-container: build-container
 	gcloud docker -- push $(IMAGE):$(VERSION)
+
+test-sanity: gce-driver
+	go test -timeout 30s github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/test -run ^TestSanity$
