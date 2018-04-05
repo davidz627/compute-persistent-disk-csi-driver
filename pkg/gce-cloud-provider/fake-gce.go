@@ -16,9 +16,14 @@ package gcecloudprovider
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/utils"
+	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type FakeCloudProvider struct {
@@ -57,7 +62,35 @@ func (cloud *FakeCloudProvider) GetDiskOrError(ctx context.Context, volumeZone, 
 }
 
 func (cloud *FakeCloudProvider) GetAndValidateExistingDisk(ctx context.Context, configuredZone, name, diskType string, reqBytes, limBytes int64) (exists bool, err error) {
-	// TODO(dyzz)implement
+	disk, ok := cloud.disks[name]
+	if !ok {
+		// Disk doesn't exist
+		return false, nil
+	}
+	if disk != nil {
+		// Check that disk is the same
+		requestValid := utils.GbToBytes(disk.SizeGb) >= reqBytes || reqBytes == 0
+		responseValid := utils.GbToBytes(disk.SizeGb) <= limBytes || limBytes == 0
+		if !requestValid || !responseValid {
+			return true, status.Error(codes.AlreadyExists, fmt.Sprintf(
+				"Disk already exists with incompatible capacity. Need %v (Required) < %v (Existing) < %v (Limit)",
+				reqBytes, utils.GbToBytes(disk.SizeGb), limBytes))
+		}
+
+		respType := strings.Split(disk.Type, "/")
+		typeMatch := respType[len(respType)-1] != diskType
+		typeDefault := diskType == "" && respType[len(respType)-1] == "pd-standard"
+		if !typeMatch && !typeDefault {
+			return true, status.Error(codes.AlreadyExists, fmt.Sprintf(
+				"Disk already exists with incompatible type. Need %v. Got %v",
+				diskType, respType[len(respType)-1]))
+		}
+
+		// Volume exists with matching name, capacity, type.
+		glog.Infof("Compatible disk already exists. Reusing existing.")
+		return true, nil
+	}
+
 	return false, nil
 }
 

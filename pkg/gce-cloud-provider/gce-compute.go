@@ -85,20 +85,26 @@ func (cloud *CloudProvider) GetAndValidateExistingDisk(ctx context.Context, conf
 
 	if resp != nil {
 		// Disk already exists
-		if utils.GbToBytes(resp.SizeGb) < reqBytes ||
-			utils.GbToBytes(resp.SizeGb) > limBytes {
+		requestValid := utils.GbToBytes(resp.SizeGb) >= reqBytes && reqBytes != 0
+		responseValid := utils.GbToBytes(resp.SizeGb) <= limBytes && limBytes != 0
+		if !requestValid || !responseValid {
 			return true, status.Error(codes.AlreadyExists, fmt.Sprintf(
 				"Disk already exists with incompatible capacity. Need %v (Required) < %v (Existing) < %v (Limit)",
 				reqBytes, utils.GbToBytes(resp.SizeGb), limBytes))
-		} else if respType := strings.Split(resp.Type, "/"); respType[len(respType)-1] != diskType {
+		}
+
+		respType := strings.Split(resp.Type, "/")
+		typeMatch := respType[len(respType)-1] != diskType
+		typeDefault := diskType == "" && respType[len(respType)-1] == "pd-standard"
+		if !typeMatch && !typeDefault {
 			return true, status.Error(codes.AlreadyExists, fmt.Sprintf(
 				"Disk already exists with incompatible type. Need %v. Got %v",
 				diskType, respType[len(respType)-1]))
-		} else {
-			// Volume exists with matching name, capacity, type.
-			glog.Infof("Compatible disk already exists. Reusing existing.")
-			return true, nil
 		}
+
+		// Volume exists with matching name, capacity, type.
+		glog.Infof("Compatible disk already exists. Reusing existing.")
+		return true, nil
 	}
 
 	return false, nil
