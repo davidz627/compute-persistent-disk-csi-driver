@@ -3,9 +3,9 @@
 set -e
 set -x
 
-readonly ROOT=$(dirname "${BASH_SOURCE}")/..
+readonly PKGDIR=github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver
 
-
-mkdir -p ${ROOT}/bin
-go build -o ${ROOT}/bin/gce-csi-driver ${ROOT}/cmd/
-go test -timeout 30s ${ROOT}/pkg/test -run ^TestSanity$
+cd ${GOROOT}
+mkdir -p ${PKGDIR}/bin
+go build -o ${PKGDIR}/bin/gce-csi-driver ${PKGDIR}/cmd
+go test -timeout 30s ${PKGDIR}/pkg/test -run ^TestSanity$
