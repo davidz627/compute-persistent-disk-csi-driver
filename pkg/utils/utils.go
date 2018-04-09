@@ -23,12 +23,12 @@ import (
 
 func BytesToGb(bytes int64) int64 {
 	// TODO: Throw an error when div to 0
-	return bytes / 1000000000
+	return bytes / (1024 * 1024 * 1024)
 }
 
 func GbToBytes(Gb int64) int64 {
 	// TODO: Check for overflow
-	return Gb * 1000000000
+	return Gb * 1024 * 1024 * 1024
 }
 
 func SplitProjectZoneNameId(id string) (string, string, string, error) {
