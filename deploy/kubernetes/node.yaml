@@ -35,9 +35,6 @@ spec:
         - name: gce-driver
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
-            allowPrivilegeEscalation: true
           imagePullPolicy: Always
           image: gcr.io/dyzz-csi-staging/csi/gce-driver:latest
           args:
