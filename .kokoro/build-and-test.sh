@@ -8,4 +8,4 @@ readonly PKGDIR=github.com/GoogleCloudPlatform/compute-persistent-disk-csi-drive
 cd ${GOROOT}
 mkdir -p ${PKGDIR}/bin
 go build -o ${PKGDIR}/bin/gce-csi-driver ${PKGDIR}/cmd
-go test -timeout 30s ${PKGDIR}/pkg/test -run ^TestSanity$
+go test -timeout 30s ${PKGDIR}/test/sanity/ -run ^TestSanity$

@@ -22,6 +22,7 @@ all: gce-driver
 gce-driver:
 	mkdir -p bin
 	go build -o bin/gce-csi-driver ./cmd/
+	go build -o bin/gce-csi-driver-test ./test/e2e/
 
 build-container: gce-driver
 	cp bin/gce-csi-driver deploy/docker

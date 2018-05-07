@@ -3,7 +3,7 @@ bin/
 deploy/docker/gce-csi-driver
 
 # Personal testing
-/test/
+/my_test/
 
 # Binaries for programs and plugins
 *.exe
