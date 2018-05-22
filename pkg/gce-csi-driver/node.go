@@ -146,7 +146,7 @@ func (ns *GCENodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStage
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability must be provided")
 	}
 
-	_, _, volumeName, err := utils.SplitProjectZoneNameId(volumeID)
+	_, volumeName, err := utils.SplitZoneNameId(volumeID)
 	if err != nil {
 		return nil, err
 	}
