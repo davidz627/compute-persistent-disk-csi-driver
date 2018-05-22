@@ -12,21 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-IMAGE=gcr.io/dyzz-csi-staging/csi/gce-driver
-VERSION=latest
+STAGINGIMAGE=gcr.io/dyzz-csi-staging/csi/gce-driver
+STAGINGVERSION=latest
 
+PRODIMAGE=gcr.io/google-containers/volume-csi/compute-persistent-disk-csi-driver
+PRODVERSION=v0.2.0.alpha
 all: gce-driver
 
 gce-driver:
 	mkdir -p bin
 	go build -o bin/gce-csi-driver ./cmd/
+	go build -o bin/gce-csi-driver-test ./test/e2e/
 
 build-container: gce-driver
 	cp bin/gce-csi-driver deploy/docker
-	docker build -t $(IMAGE):$(VERSION) deploy/docker
+	docker build -t $(STAGINGIMAGE):$(STAGINGVERSION) deploy/docker
 
 push-container: build-container
-	gcloud docker -- push $(IMAGE):$(VERSION)
+	gcloud docker -- push $(STAGINGIMAGE):$(STAGINGVERSION)
+
+prod-build-container: gce-driver
+	cp bin/gce-csi-driver deploy/docker
+	docker build -t $(PRODIMAGE):$(PRODVERSION) deploy/docker
+
+prod-push-container: prod-build-container
+	gcloud docker -- push $(PRODIMAGE):$(PRODVERSION)
 
 test-sanity: gce-driver
 	go test -timeout 30s github.com/GoogleCloudPlatform/compute-persistent-disk-csi-driver/pkg/test -run ^TestSanity$

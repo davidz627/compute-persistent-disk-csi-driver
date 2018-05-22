@@ -20,6 +20,12 @@
   version = "v1.1.0"
 
 [[projects]]
+  name = "github.com/ghodss/yaml"
+  packages = ["."]
+  revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
+  version = "v1.0.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/golang/glog"
   packages = ["."]
@@ -44,7 +50,7 @@
     "pkg/sanity",
     "utils"
   ]
-  revision = "519692d75cbf30ce1890fb4a984d9de3ab68cdd3"
+  revision = "f8ada4fcf7755cf7a941ac49d0bda967bce403dc"
 
 [[projects]]
   name = "github.com/onsi/ginkgo"
@@ -89,6 +95,12 @@
   ]
   revision = "003f63b7f4cff3fc95357005358af2de0f5fe152"
   version = "v1.3.0"
+
+[[projects]]
+  name = "github.com/pborman/uuid"
+  packages = ["."]
+  revision = "e790cca94e6cc75c7064b1332e63811d4aae1a53"
+  version = "v1.1"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -175,6 +187,7 @@
   branch = "master"
   name = "google.golang.org/api"
   packages = [
+    "compute/v0.beta",
     "compute/v1",
     "gensupport",
     "googleapi",
@@ -245,11 +258,21 @@
   branch = "master"
   name = "k8s.io/apimachinery"
   packages = [
+    "pkg/util/errors",
     "pkg/util/runtime",
     "pkg/util/sets",
     "pkg/util/wait"
   ]
   revision = "e9ff529c66f83aeac6dff90f11ea0c5b7c4d626a"
+
+[[projects]]
+  name = "k8s.io/kubernetes"
+  packages = [
+    "test/e2e_node/builder",
+    "test/e2e_node/remote"
+  ]
+  revision = "81753b10df112992bf51bbc2c2f85208aad78335"
+  version = "v1.10.2"
 
 [[projects]]
   branch = "master"
@@ -260,6 +283,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5ee22c5d4085147b11ce7dd78f9aaa1934e8dab22330583ac6ddb6ea93d707ff"
+  inputs-digest = "a2424977070f654f290bc29cc9456939636f5d55ed02196e15392a2604b1785b"
   solver-name = "gps-cdcl"
   solver-version = 1

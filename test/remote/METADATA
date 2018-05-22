@@ -1,0 +1,14 @@
+name: "Node Remote E2E Framework"
+description:
+    "The Node Remote E2E Framework allows creation of GCE Instance, running of tests, and reporting back of results to a local terminal"
+
+third_party {
+  url {
+    type: GIT
+    value: "https://github.com/kubernetes/kubernetes/test/e2e_node"
+  }
+  version: "1.11"
+  last_upgrade_date { year: 2018 month: 05 day: 07 }
+  license_type: NOTICE
+  local_modifications: "Removed node E2E specific code, replaced with GCE PD CSI Driver specific code , only using the barebones framework"
+}

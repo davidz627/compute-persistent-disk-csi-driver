@@ -111,15 +111,10 @@ func (gceCS *GCEControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		}
 	}
 
-	project, err := gceCS.CloudProvider.GetProject()
-	if err != nil {
-		return nil, err
-	}
-
 	createResp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes: capBytes,
-			Id:            utils.CombineVolumeId(project, configuredZone, name),
+			Id:            utils.CombineVolumeId(configuredZone, name),
 			// TODO: Are there any attributes we need to add. These get sent to ControllerPublishVolume
 			Attributes: nil,
 		},
@@ -198,7 +193,7 @@ func (gceCS *GCEControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 		return nil, status.Error(codes.InvalidArgument, "DeleteVolume Volume ID must be provided")
 	}
 
-	_, zone, name, err := utils.SplitProjectZoneNameId(volumeID)
+	zone, name, err := utils.SplitZoneNameId(volumeID)
 	if err != nil {
 		// Cannot find volume associated with this ID because can't even get the name or zone
 		// This is a success according to the spec
@@ -243,7 +238,7 @@ func (gceCS *GCEControllerServer) ControllerPublishVolume(ctx context.Context, r
 		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume capability must be provided")
 	}
 
-	_, volumeZone, volumeName, err := utils.SplitProjectZoneNameId(volumeID)
+	volumeZone, volumeName, err := utils.SplitZoneNameId(volumeID)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +313,7 @@ func (gceCS *GCEControllerServer) ControllerUnpublishVolume(ctx context.Context,
 		return nil, status.Error(codes.InvalidArgument, "ControllerUnpublishVolume Node ID must be provided")
 	}
 
-	_, volumeZone, volumeName, err := utils.SplitProjectZoneNameId(volumeID)
+	volumeZone, volumeName, err := utils.SplitZoneNameId(volumeID)
 	if err != nil {
 		return nil, err
 	}
