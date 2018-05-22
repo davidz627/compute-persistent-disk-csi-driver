@@ -31,14 +31,14 @@ func GbToBytes(Gb int64) int64 {
 	return Gb * 1024 * 1024 * 1024
 }
 
-func SplitProjectZoneNameId(id string) (string, string, string, error) {
+func SplitZoneNameId(id string) (string, string, error) {
 	splitId := strings.Split(id, "/")
-	if len(splitId) != 3 {
-		return "", "", "", fmt.Errorf("Failed to get id components. Expected {project}/{zone}/{name}. Got: %s", id)
+	if len(splitId) != 2 {
+		return "", "", fmt.Errorf("Failed to get id components. Expected {zone}/{name}. Got: %s", id)
 	}
-	return splitId[0], splitId[1], splitId[2], nil
+	return splitId[0], splitId[1], nil
 }
 
-func CombineVolumeId(project, zone, name string) string {
-	return fmt.Sprintf("%s/%s/%s", project, zone, name)
+func CombineVolumeId(zone, name string) string {
+	return fmt.Sprintf("%s/%s", zone, name)
 }
